@@ -1,0 +1,201 @@
+EESchema Schematic File Version 2
+LIBS:hw01
+LIBS:power
+LIBS:device
+LIBS:transistors
+LIBS:conn
+LIBS:linear
+LIBS:regul
+LIBS:74xx
+LIBS:cmos4000
+LIBS:adc-dac
+LIBS:memory
+LIBS:xilinx
+LIBS:microcontrollers
+LIBS:dsp
+LIBS:microchip
+LIBS:analog_switches
+LIBS:motorola
+LIBS:texas
+LIBS:intel
+LIBS:audio
+LIBS:interface
+LIBS:digital-audio
+LIBS:philips
+LIBS:display
+LIBS:cypress
+LIBS:siliconi
+LIBS:opto
+LIBS:atmel
+LIBS:contrib
+LIBS:valves
+LIBS:sigencomps
+LIBS:Tag-Connect
+LIBS:KeithleyUpgrade-cache
+EELAYER 25 0
+EELAYER END
+$Descr A3 16535 11693
+encoding utf-8
+Sheet 2 2
+Title "Scanner Board"
+Date "2015-09-20"
+Rev "1"
+Comp "ADM"
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+$Comp
+L MIC5841 U?
+U 1 1 55FEFC02
+P 12580 3755
+F 0 "U?" H 12630 3905 60  0000 C CNN
+F 1 "MIC5841" H 12580 3605 60  0000 C CNN
+F 2 "" H 12980 4105 60  0000 C CNN
+F 3 "" H 12980 4105 60  0000 C CNN
+	1    12580 3755
+	-1   0    0    -1  
+$EndComp
+$Comp
+L GND #PWR?
+U 1 1 55FF136E
+P 12430 4550
+F 0 "#PWR?" H 12430 4550 30  0001 C CNN
+F 1 "GND" H 12430 4480 30  0001 C CNN
+F 2 "" H 12430 4550 60  0000 C CNN
+F 3 "" H 12430 4550 60  0000 C CNN
+	1    12430 4550
+	1    0    0    -1  
+$EndComp
+$Comp
+L +5V #PWR?
+U 1 1 55FF2DB1
+P 12730 3020
+F 0 "#PWR?" H 12730 3110 20  0001 C CNN
+F 1 "+5V" H 12730 3110 30  0000 C CNN
+F 2 "" H 12730 3020 60  0000 C CNN
+F 3 "" H 12730 3020 60  0000 C CNN
+	1    12730 3020
+	1    0    0    -1  
+$EndComp
+$Comp
+L MIC5841 U?
+U 1 1 55FF3564
+P 12555 5600
+F 0 "U?" H 12605 5750 60  0000 C CNN
+F 1 "MIC5841" H 12555 5450 60  0000 C CNN
+F 2 "" H 12955 5950 60  0000 C CNN
+F 3 "" H 12955 5950 60  0000 C CNN
+	1    12555 5600
+	-1   0    0    -1  
+$EndComp
+$Comp
+L GND #PWR?
+U 1 1 55FF356A
+P 12405 6395
+F 0 "#PWR?" H 12405 6395 30  0001 C CNN
+F 1 "GND" H 12405 6325 30  0001 C CNN
+F 2 "" H 12405 6395 60  0000 C CNN
+F 3 "" H 12405 6395 60  0000 C CNN
+	1    12405 6395
+	1    0    0    -1  
+$EndComp
+$Comp
+L +5V #PWR?
+U 1 1 55FF3576
+P 12705 4865
+F 0 "#PWR?" H 12705 4955 20  0001 C CNN
+F 1 "+5V" H 12705 4955 30  0000 C CNN
+F 2 "" H 12705 4865 60  0000 C CNN
+F 3 "" H 12705 4865 60  0000 C CNN
+	1    12705 4865
+	1    0    0    -1  
+$EndComp
+$Comp
+L MIC5841 U?
+U 1 1 55FF3611
+P 12530 7395
+F 0 "U?" H 12580 7545 60  0000 C CNN
+F 1 "MIC5841" H 12530 7245 60  0000 C CNN
+F 2 "" H 12930 7745 60  0000 C CNN
+F 3 "" H 12930 7745 60  0000 C CNN
+	1    12530 7395
+	-1   0    0    -1  
+$EndComp
+$Comp
+L GND #PWR?
+U 1 1 55FF3617
+P 12380 8190
+F 0 "#PWR?" H 12380 8190 30  0001 C CNN
+F 1 "GND" H 12380 8120 30  0001 C CNN
+F 2 "" H 12380 8190 60  0000 C CNN
+F 3 "" H 12380 8190 60  0000 C CNN
+	1    12380 8190
+	1    0    0    -1  
+$EndComp
+$Comp
+L +5V #PWR?
+U 1 1 55FF3623
+P 12680 6660
+F 0 "#PWR?" H 12680 6750 20  0001 C CNN
+F 1 "+5V" H 12680 6750 30  0000 C CNN
+F 2 "" H 12680 6660 60  0000 C CNN
+F 3 "" H 12680 6660 60  0000 C CNN
+	1    12680 6660
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	12430 4455 12430 4550
+Wire Wire Line
+	12530 4455 12530 4505
+Wire Wire Line
+	12430 4505 12680 4505
+Connection ~ 12430 4505
+Wire Wire Line
+	12680 4505 12680 4455
+Connection ~ 12530 4505
+Wire Wire Line
+	12730 3020 12730 3105
+Wire Wire Line
+	12430 3105 12430 3060
+Wire Wire Line
+	12430 3060 12730 3060
+Connection ~ 12730 3060
+Wire Wire Line
+	12405 6300 12405 6395
+Wire Wire Line
+	12505 6300 12505 6350
+Wire Wire Line
+	12405 6350 12655 6350
+Connection ~ 12405 6350
+Wire Wire Line
+	12655 6350 12655 6300
+Connection ~ 12505 6350
+Wire Wire Line
+	12705 4865 12705 4950
+Wire Wire Line
+	12405 4950 12405 4905
+Wire Wire Line
+	12405 4905 12705 4905
+Connection ~ 12705 4905
+Wire Wire Line
+	12380 8095 12380 8190
+Wire Wire Line
+	12480 8095 12480 8145
+Wire Wire Line
+	12380 8145 12630 8145
+Connection ~ 12380 8145
+Wire Wire Line
+	12630 8145 12630 8095
+Connection ~ 12480 8145
+Wire Wire Line
+	12680 6660 12680 6745
+Wire Wire Line
+	12380 6745 12380 6700
+Wire Wire Line
+	12380 6700 12680 6700
+Connection ~ 12680 6700
+Wire Bus Line
+	13420 3345 13420 7870
+$EndSCHEMATC

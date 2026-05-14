@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://www.netbeans.org/ns/project/1">
+    <type>com.microchip.mplab.nbide.embedded.makeproject</type>
+    <configuration>
+        <data xmlns="http://www.netbeans.org/ns/make-project/1">
+            <name>kupgrade</name>
+            <creation-uuid>1cbcda28-7899-49ca-a6bb-30d881d69f76</creation-uuid>
+            <make-project-type>0</make-project-type>
+            <c-extensions>c</c-extensions>
+            <cpp-extensions/>
+            <header-extensions>h</header-extensions>
+            <asminc-extensions/>
+            <sourceEncoding>ISO-8859-1</sourceEncoding>
+            <make-dep-projects/>
+            <sourceRootList>
+                <sourceRootElem>src</sourceRootElem>
+                <sourceRootElem>src/hal</sourceRootElem>
+                <sourceRootElem>src/FreeRTOS</sourceRootElem>
+                <sourceRootElem>src/app</sourceRootElem>
+                <sourceRootElem>src/kmm</sourceRootElem>
+                <sourceRootElem>src/system</sourceRootElem>
+                <sourceRootElem>src/eefs</sourceRootElem>
+                <sourceRootElem>src/sys</sourceRootElem>
+                <sourceRootElem>src/libscpi</sourceRootElem>
+                <sourceRootElem>src/drivers</sourceRootElem>
+                <sourceRootElem>src/dmm</sourceRootElem>
+                <sourceRootElem>src/utils</sourceRootElem>
+                <sourceRootElem>src/scpi-parser/libscpi/src</sourceRootElem>
+                <sourceRootElem>src/scpi-parser/libscpi/inc/scpi</sourceRootElem>
+                <sourceRootElem>src/tasks</sourceRootElem>
+            </sourceRootList>
+            <confList>
+                <confElem>
+                    <name>default</name>
+                    <type>2</type>
+                </confElem>
+            </confList>
+            <formatting>
+                <project-formatting-style>false</project-formatting-style>
+            </formatting>
+        </data>
+    </configuration>
+</project>

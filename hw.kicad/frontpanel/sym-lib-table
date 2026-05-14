@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 0)
+  (lib (name "frontpanel-rescue")(type "Legacy")(uri "${KIPRJMOD}/frontpanel-rescue.lib")(options "")(descr ""))
+)
