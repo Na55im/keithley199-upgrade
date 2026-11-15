@@ -299,7 +299,11 @@ static void measure_task(void *pvParameters)
 			vTaskDelay(1000);
 	}
 
+#if MEAS_DEBUG_COUNTS
+	/* LA hook samples ACOUNT for ~10 ms with interrupts off -> freezes the
+	 * display multiplex (visible flicker). Only for diagnostics. */
 	hal_adc_int_hook = la_int_hook;
+#endif
 	display_setmode(DISP_VOLTS);
 	int blink = 0;
 	int ri = 0;
