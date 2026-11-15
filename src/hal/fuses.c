@@ -20,7 +20,7 @@
 #pragma config FPLLODIV = DIV_1         // System PLL Output Clock Divider (PLL Divide by 1)
 
 // DEVCFG1
-#pragma config FNOSC = PRIPLL           // Oscillator Selection Bits (Primary Osc w/PLL (XT+,HS+,EC+PLL))
+#pragma config FNOSC = FRCPLL           // FRC 8 MHz /2 x20 = 80 MHz. PRIPLL fell back to plain FRC (8 MHz): crystal X1 does not start (2026-11-15)
 #pragma config FSOSCEN = OFF            // Secondary Oscillator Enable (Disabled)
 #pragma config IESO = ON                // Internal/External Switch Over (Enabled)
 #pragma config POSCMOD = XT             // Primary Oscillator Configuration (XT osc mode)

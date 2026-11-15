@@ -178,6 +178,10 @@ static uint32_t do_sequence(unsigned char channel, adc_control_sequence* sequenc
 }
 
 
+/* Raw counts of the last measurement (signal, signal zero, ref zero, ref),
+ * exported for bring-up diagnostics. */
+volatile int adc_last_counts[4];
+
 static double adc_do_measurement(unsigned char channel, adc_control_sequence* sequence){
     assert(sequence);
     adcctrl_reset(sequence); // always start at sequence start point.
@@ -186,6 +190,10 @@ static double adc_do_measurement(unsigned char channel, adc_control_sequence* se
     sigzero_count = do_sequence(channel, sequence);
     refzero_count = do_sequence(channel, sequence);
     ref_count = do_sequence(channel, sequence);
+    adc_last_counts[0] = signal_count;
+    adc_last_counts[1] = sigzero_count;
+    adc_last_counts[2] = refzero_count;
+    adc_last_counts[3] = ref_count;
     int signal, reference;
     signal = signal_count - sigzero_count;
     reference = ref_count - refzero_count;

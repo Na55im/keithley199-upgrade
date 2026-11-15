@@ -36,24 +36,23 @@ static int highlighted_digit = 0;
  * Inside one ISR call we clock through ALL 11 digit positions,
  * holding each digit for ~1 ms  (total ISR ≈ 11 ms).
  */
-#define FRAME_PERIOD_US   100u            /* small gap; frame time set by hold delays */
-#define DIGIT_HOLD_LOOPS  350u            /* dwell after each digit; shorter = tighter SPI bursts */
+/* One digit slot per core-timer interrupt: the ISR only shifts the select word
+ * and returns, the digit stays lit until the next interrupt. 11 slots x 1 ms
+ * = ~90 Hz frame rate. (Scanning the whole frame with busy-wait dwell inside
+ * one ISR every 100 us starved FreeRTOS: tick ~10x too slow, OC3/ADC ISR
+ * delayed by up to a frame.) */
+#define SLOT_PERIOD_US    1000u
+#define FRAME_PERIOD_US   (SLOT_PERIOD_US * NUMBER_OF_CHARACTERS)
 #define KEY_HOLDOF_PERIOD 500             /* ms */
 #define KEY_REPEAT_PERIOD 100             /* ms */
 
-static void __attribute__((nomips16)) digit_hold(volatile unsigned int loops)
-{
-    while (loops--) {
-        __asm__ volatile("nop" ::: "memory");
-    }
-}
 
 void display_kyb_init(void)
 {
     hal_io_init();
     hal_spi_init_16bit();
     event_queue = xQueueCreate(EVENT_QUEUE_LENGTH, sizeof(key_id));
-    hal_timer_init((int)FRAME_PERIOD_US, timer_handler);
+    hal_timer_init((int)SLOT_PERIOD_US, timer_handler);
 }
 
 void display_evt_clear(void){
@@ -181,59 +180,63 @@ static int hl_time = 0;
  * For each digit: write segments → advance digit select → hold ~1 ms.
  * Keyboard matrix is read per-digit since the select line is shared.
  */
+static unsigned int scan_pos = 0;
+static key_id frame_key = KEY_NONE;
+
+/* Light one digit slot. Returns true when a full frame has been scanned. */
+static bool __attribute__((nomips16)) hal_disp_scan_step(void)
+{
+    unsigned int pos = scan_pos;
+    unsigned int bus = hal_digit_bus_line((int)pos);
+
+    if (pos == 0)
+        frame_key = KEY_NONE;
+
+    if (highlighted_digit == (int)pos) {
+        if (hl_time > HIGHLIGHT_TIME) {
+            hl_time = 0;
+        } else {
+            hl_time++;
+        }
+    }
+
+    display_set(screen[pos], (int)pos);
+
+    /* Keyboard scan for the currently selected digit (hardware bus index) */
+    if (hal_io_keyboard_get_channel() == 1) {
+        switch (bus) {
+            case 1: frame_key = KEY_1; break;
+            case 2: frame_key = KEY_3; break;
+            case 3: frame_key = KEY_0; break;
+            case 4: frame_key = KEY_8; break;
+        }
+    }
+    if (hal_io_keyboard_get_channel() == 2) {
+        switch (bus) {
+            case 1: frame_key = KEY_UP; break;
+            case 2: frame_key = KEY_9;  break;
+            case 3: frame_key = KEY_2;  break;
+            case 4: frame_key = KEY_DOWN; break;
+        }
+    }
+    if (hal_io_keyboard_get_channel() == 3) {
+        switch (bus) {
+            case 1: frame_key = KEY_7;   break;
+            case 2: frame_key = KEY_6;   break;
+            case 3: frame_key = KEY_5;   break;
+            case 4: frame_key = KEY_CAL; break;
+            case 5: frame_key = KEY_4;   break;
+        }
+    }
+
+    scan_pos = (pos + 1u) % NUMBER_OF_CHARACTERS;
+    return scan_pos == 0u;
+}
+
+/* End of frame: key evaluation and self-test (once per frame). */
 static key_id __attribute__((nomips16)) hal_disp_scan(void)
 {
-    unsigned int pos;
-
-    key_pressed = KEY_NONE;
-
-    for (pos = 0; pos < NUMBER_OF_CHARACTERS; pos++) {
-        unsigned int bus = hal_digit_bus_line((int)pos);
-
-        /* Skip or double-paint the highlighted digit */
-        if (highlighted_digit == (int)pos) {
-            if (hl_time > HIGHLIGHT_TIME) {
-                hl_time = 0;
-            } else {
-                hl_time++;
-            }
-        }
-
-        display_set(screen[pos], (int)pos);
-
-        /* Keyboard scan for the currently selected digit (hardware bus index) */
-        if (hal_io_keyboard_get_channel() == 1) {
-            switch (bus) {
-                case 1: key_pressed = KEY_1; break;
-                case 2: key_pressed = KEY_3; break;
-                case 3: key_pressed = KEY_0; break;
-                case 4: key_pressed = KEY_8; break;
-            }
-        }
-        if (hal_io_keyboard_get_channel() == 2) {
-            switch (bus) {
-                case 1: key_pressed = KEY_UP; break;
-                case 2: key_pressed = KEY_9;  break;
-                case 3: key_pressed = KEY_2;  break;
-                case 4: key_pressed = KEY_DOWN; break;
-            }
-        }
-        if (hal_io_keyboard_get_channel() == 3) {
-            switch (bus) {
-                case 1: key_pressed = KEY_7;   break;
-                case 2: key_pressed = KEY_6;   break;
-                case 3: key_pressed = KEY_5;   break;
-                case 4: key_pressed = KEY_CAL; break;
-                case 5: key_pressed = KEY_4;   break;
-            }
-        }
-
-        /* Dwell: slightly longer on LED row (F7FE) so indicators are not dim. */
-        if (pos == 10u)
-            digit_hold(DIGIT_HOLD_LOOPS * 2u);
-        else
-            digit_hold(DIGIT_HOLD_LOOPS);
-    }
+    key_pressed = frame_key;
 
     /* Original: after F7FE the next frame starts with FFDF — no extra 0xFFFF word.
      * Do not blank PORTD here while F7FE is still latched (that weakly lights LEDs). */
@@ -278,7 +281,9 @@ static int rept_counter = 0;
 
 void timer_handler(void)
 {
-    BaseType_t xHigherPriorityTaskWoken;
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    if (!hal_disp_scan_step())
+        return;
     key_id key = hal_disp_scan();
     if (key != last_key_interrupt) {
         xQueueSendToBackFromISR(event_queue, &key, &xHigherPriorityTaskWoken);

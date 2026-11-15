@@ -281,3 +281,8 @@ doc/KEI 199 Operation, Programming & Maintenance.pdf
 
 # KiCad local history (nested .git; not for sharing)
 hw.kicad/.history/
+
+# Python tooling (local)
+tools/.venv/
+tools/captures/
+tools/__pycache__/

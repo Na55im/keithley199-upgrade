@@ -22,7 +22,7 @@ static const uint16_t digit_select[11] = {
 };
 
 static const uint8_t digit_bus_line[11] = {
-	0, 9, 8, 3, 4, 5, 6, 7, 2, 1, 10
+	8, 6, 4, 2, 0, 9, 7, 5, 3, 1, 10
 };
 
 static void __attribute__((nomips16)) spi_bit_delay(volatile unsigned int loops)
@@ -53,7 +53,9 @@ void __attribute__((nomips16)) hal_spi_init_16bit(void)
 		CFGCONbits.IOLOCK = 0;
 		RPG6Rbits.RPG6R = 0;
 		RPC1Rbits.RPC1R = 0;
-		CFGCONbits.IOLOCK = 1;
+		/* Do NOT set IOLOCK here: with fuse IOL1WAY = ON the lock can never be
+		 * released again, and hal_adc_init() still has to map SDO1 -> RF8,
+		 * OC3 -> RG1 and T4CK <- RE3 afterwards (2026-11-15). */
 		SYSKEY = 0x33333333;
 		hal_irq_restore(ist);
 	}

@@ -266,3 +266,81 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **Entfernt:** `.gitmodules` (kein aktives Submodul; **`src/scpi-parser/libscpi`** ist vendored im Tree).
 - **`README.md`:** Zeile mit GitHub-Fork **https://github.com/Na55im/keithley199-upgrade** für Zusammenarbeit.
 - **Git-Index:** `hw.kicad/.history` war als **gitlink (160000)** eingetragen — mit **`git rm -f --cached`** entfernt, bleibt nur lokal per `.gitignore` ausgeschlossen.
+
+## 2026-11-15 — Erstes Flashen per PICkit 3 / ipecmd (MPLAB X 6.05)
+
+- **Befehl bestätigt** und in `CLAUDE.md` eingetragen: `ipecmd.sh` aus **v6.05** mit `-P32MX350F256L -TPPK3 -F<hex> -M -Y`, PICkit an **J2**, keine Versorgung durch den PICkit.
+- **Bring-up-Probleme:** „could not detect target voltage VDD“ kam von einer **losen GND-Verbindung** im Programmierkabel. Nach einem Abbruch hing der PICkit („Connection Failed“) bis zum USB-Neustecken.
+- **Erster Flash-Lauf** brach nach dem Löschen ab, der zweite programmierte erfolgreich, ein separater Verify gegen `keithley_199-master.production.hex` (Build vom 2026-11-15) bestand.
+- **Nachtrag:** Ohne `-OL` hält der angesteckte PICkit 3 den PIC im Reset (Display schwarz, mit abgezogenem PICkit läuft er). `ipecmd … -OL` gibt ihn frei; `-OL` gehört deshalb fest in den Flash-Befehl.
+
+## 2026-11-15 — `digit_bus_line` per Kamera-Loop korrigiert
+
+- **Vorher** `{0,9,8,3,4,5,6,7,2,1,10}`: Test-String `0123456789` erschien als `?64801753` (Kamera C920 auf dem Display).
+- **Abgeleitet:** Glasposition links→rechts wird von Bus **8, 6, 4, 2, 0, 9, 7, 5, 3** getrieben; Bus 1 hat keine sichtbare Stelle (9 Ziffernpositionen am Glas).
+- **`hal_spi.c`:** `digit_bus_line = {8,6,4,2,0,9,7,5,3,1,10}`. Ergebnis nach dem Flashen (1. Iteration): `012345678` in richtiger Reihenfolge, das 10. Zeichen (`9`) landet auf dem unsichtbaren Bus 1.
+- **Erste Glasposition:** Das untere Segment leuchtet nicht (`0` sieht aus wie `Π`, vorher `2` ohne Unterstrich). Laut Nutzer vermutlich ein **defektes Segment im Display** — kein Firmware-Fehler, nicht weiter verfolgt.
+
+## 2026-11-15 — Messpfad-Bring-up (DCV 3 V): Takt, Display-ISR, ADC ohne PLIB
+
+- **`main.c`:** Statt Display-Test jetzt Messaufgabe: `adc_init(50 Hz, DCV, 3 V)` → `adc_read_value()` → Anzeige `+x.xxxxx`. Beim Start 3 s `OSC n C c` (OSCCON.COSC / CF). Mit `MEAS_DEBUG_COUNTS 1` danach je 2,5 s die Rohzählwerte **A** (Signal), **B** (Signal-Null), **C** (Ref-Null), **D** (Ref). `tskmgr.c` (Settings/EEPROM/Tasten/SCPI) wird noch nicht gestartet.
+- **ROOT CAUSE Takt:** COSC = 0 → der PIC lief auf **FRC 8 MHz ohne PLL** (10× zu langsam; alles, was mit 80 MHz rechnet, war falsch). Mit `FNOSC = PRIPLL` + `IESO = ON` bleibt er auf FRC, weil **Quarz X1 nicht anschwingt** (Wert im Schaltplan nicht angegeben). **Fix `fuses.c`:** `FNOSC = FRCPLL` (8 MHz/2×20 = 80 MHz, ±~1 %). Danach COSC = 1, Timing stimmt (per Kamera geprüft). Quarz/Bestückung von X1 prüfen.
+- **Display-ISR (`dispkyb.c`):** Vorher alle 100 µs ein kompletter 11-Stellen-Frame mit Warteschleifen im Interrupt → CPU fast nur im ISR, FreeRTOS-Tick ausgebremst, OC3-ISR (gleiche Priorität 3) bis zu einen Frame verzögert. Jetzt **eine Stelle pro Core-Timer-Interrupt** (`SLOT_PERIOD_US = 1000`, 11 Slots ≈ 90 Hz), keine Warteschleifen; Tastenauswertung einmal pro Frame. Anzeige gleichmäßig hell.
+- **`hal_adc.c` ohne PLIB:** Timer2/3 (32 bit, PBCLK/32), OC3 Continuous-Pulse (32 bit, `OC3RS = Periode − 63`, `OC3R = 0`, IPL3), Timer4/5 als 32-bit-Zähler an T4CK, PPS direkt: `RPG1R = 11` (OC3→ASTROBE), `RPF8R = 8` (SDO1→ADATA), `T4CKR = 6` (RPE3←ACOUNT). Bug behoben: `hal_adc_set_integration_period` setzte OC3RS mit der µs-Zahl statt mit Timer-Ticks. OC3-Vektor 14 kommt aus dem `vector()`-Prototyp in `hal_adc.c` (keine zweite Dispatch-Section in `isrWrappers.S` anlegen → doppelte Definition). `OC3_handler` jetzt `nomips16`. RE3 mit internem Pull-up (`CNPUESET`), weil ACOUNT auf der Platine keinen hat.
+- **Ergebnis:** Messschleife läuft durch, aber **A = B = D = 256, C = 257** (bei 0 V und Riden aus): Zähler sieht praktisch keine Pulse (256 = 2 × 128 + 0). Signal − Null = 0, Referenz − Null ≈ 0 → Anzeige `+0.00000`. Pull-up an RE3 änderte nichts.
+- **Nächster Schritt (braucht Messgerät):** Mit LA/Oszi an ASTROBE (RG1), ACLOCK (RF6), ADATA (RF8) und ACOUNT (RE3/P18.6) prüfen, ob Strobe/Mux-Bytes rausgehen und ob die Analogplatine Zählpulse liefert. Netlist: ACLOCK/ADATA/ASTROBE gehen über U9, ACOUNT direkt von P18.6.
+- **Nachtrag (Riden als Reiz, 0/1/2 V stabil):** Mit 80 MHz zählt ACOUNT **0 Pulse** (auch 1 s freilaufend). Die vorherigen 256/512-Werte entstanden nur beim Umschalten des Riden-Ausgangs (Störimpulse).
+- **Gegenproben:** (a) alte `~/Downloads/keithley_199/build/release/k199.hex` (Dez 2025, F128L-Build): Display bleibt dunkel. (b) KMM-Timing ×10 langsamer (`KMM_SLOW`, SPI 100 kHz, Strobe 250 µs): A=B=C=D (387/774), phasenunabhängig → Übersprechen, keine Messung. (c) ganzer Chip auf FRC 8 MHz (Zustand vor dem Takt-Fix): ebenfalls nur 129…512, „OVERFLO“. In keiner Variante liefert die Analogplatine phasenabhängige Zählwerte.
+- `KMM_SLOW` (Default 1) bleibt als Stellschraube in `hal_adc.c`.
+- **„0.00000 mit wackelnden letzten Stellen“ reproduziert:** Das war die **erste Messfirmware dieser Session** (Fuse `PRIPLL` → real FRC 8 MHz, alter Display-ISR, der die CPU fast komplett belegt). Nachgebaut und mit Riden geprüft: A/B/C/D ≈ **11532…11535** (vereinzelt 11916), freilaufend F ≈ 460…930 Pulse/s, Anzeige `+0.00000`, selten `+0.02205` oder `NAN`. **Bei 0, 1 und 2 V identisch** → die Analogplatine liefert in diesem Zustand Zählpulse, der Eingang wird aber nicht gemessen (Mux-Befehle schalten offenbar nicht auf den Eingang). Bei 80 MHz kommen dagegen gar keine Pulse → Timing der KMM-Schnittstelle ist entscheidend (Integration hier effektiv 200 ms statt 20 ms, Strobe 250 µs, SPI 100 kHz, Wartezeiten ~100× länger).
+
+## 2026-11-15 — Timing-Loop an der KMM-Schnittstelle (80 MHz, Riden 0 V / 2 V)
+
+- **Stellschrauben in `hal_adc.c`:** `KMM_SLOW` (Strobe-Breite, Start-Wartezeit, SPI1-Teiler), `ADC_INT_SCALE` (Integrationszeit × n), `KMM_MUX_WAIT`, `KMM_INT_WAIT`, `KMM_SETTLE_WAIT`, `KMM_RUNDOWN_WAIT` (FreeRTOS-Ticks, 1,67 ms). `main.c` zeigt S = A−B (Signal−Null), R = D−C (Ref−Null), A (roh).
+- **Alles schnell (Original-Werte):** 0 Pulse. **r1 alles langsam** (Strobe 250 µs, SPI 100 kHz, Integration 200 ms, Wartezeiten 100–200 ms): A 3346…17110, S/R nur 0/±1/±127/±128/254.
+- **r2** (nur Integration 20 ms), **r3** (nur Strobe/SPI schnell), **r4** (nur Wartezeiten kurz): alle liefern Pulse, A schwankt zwischen Zyklen stark (1297…9216), **S und R bleiben ≈ 0 (±1 Zählschritt) bei 0 V und 2 V**.
+- **Deutung:** Innerhalb eines Zyklus zählen alle vier Integrationen gleich viel, über die Zyklen schwankt es. Das Zählsignal hängt also nur vom Zeitfenster ab, nicht von Mux-Konfiguration oder Eingangsspannung → entweder kommen die Mux-/Integrator-Befehle auf der Analogplatine nicht an, oder auf ACOUNT liegt ein freilaufendes Signal/Störung statt der A/D-Pulse. Laut Handbuch 5.4: Charge-Balance-Pulse mit konstanter Frequenz + Final-Slope mit 3,84-MHz-Takt; ACOUNT kommt über einen Optokoppler (AT1 HCPL-2631) und braucht vermutlich einen kräftigen Pull-up.
+
+## 2026-11-15 — Software-Logikanalysator auf ACOUNT (RE3)
+
+- **`main.c`:** `la_sample()` tastet RE3 mit ~10 MHz bei gesperrten Interrupts ab (Flanken, High-Anteil, min./max. Pulsbreite). Anzeige T (kHz), H (‰ High), E (steigende Flanken), P/Q (min. High/Low-Breite), X (max. High). Über `hal_adc_int_hook` (neu in `hal_adc.c`) wird 10 ms **direkt nach dem Start-Strobe der Integration** abgetastet.
+- **Ergebnis (0 V und 2 V, Pull-up an):** H = 1000 ‰, E = 0 – auch während der Integration **keine einzige Flanke**.
+- **Polarität geprüft** (`KMM_DATA_INV`, `KMM_CKP`, alle 4 Kombinationen): unverändert H = 1000, E = 0.
+- **Mit Pull-down statt Pull-up:** weiterhin H = 1000 → ACOUNT wird von der Analogseite **aktiv High** gehalten (Optokoppler-Ausgang versorgt, aber nie angesteuert).
+- **Schluss:** Der A/D-Wandler auf der Analogplatine pulst nicht. Entweder kommen Takt/Daten/Strobe dort nicht an (U9 = CD4050 → P18.4/5/7 → Optokoppler), oder die Analogplatine wandelt aus anderem Grund nicht. Weitere Eingrenzung nur mit Messung an P18.4/5/7 bzw. am Optokoppler-Eingang auf der Analogplatine. Die früheren Zählwerte (256, 2049, 11535 …) waren Störimpulse.
+- Pull-up an RE3 wieder aktiv; Stellschrauben stehen auf `KMM_SLOW 10`, `ADC_INT_SCALE 10`, kurze Wartezeiten, keine Inversion.
+
+## 2026-11-15 — ROOT CAUSE ADC: PPS-Sperre aus der Display-Init → **DCV misst**
+
+- **Eingrenzung ohne Messgerät:** Statischer Pin-Test (P18.4/5/7 schalten 0 V ↔ 5 V, Nutzer gemessen), Analogversorgungen U50–U53 ok (Nutzer). Bitbang-Test: Befehl „Integration starten“ (`0x01FFE29D`) per GPIO-Bitbang + GPIO-Strobe → ~65 770 Flanken / 50 ms auf ACOUNT, „Stopp“ → 0. Mit Hardware-SPI1 (SDO1→RF8) **oder** OC3-Strobe (→RG1): 0 Flanken.
+- **Ursache:** `hal_spi_init_16bit()` (Display) setzte nach dem Umstellen von RPG6R/RPC1R `CFGCONbits.IOLOCK = 1`. Mit Fuse `IOL1WAY = ON` ist die Sperre bis zum Reset endgültig → `RPF8R = 8`, `RPG1R = 11`, `T4CKR = 6` aus `hal_adc_init()` wurden ignoriert. SDO1/OC3 kamen nie an die Pins; die Analogplatine bekam nie einen Befehl.
+- **Fix `hal_spi.c`:** IOLOCK nicht mehr setzen (Kommentar im Code).
+- **Ergebnis (Original-Timing, `KMM_*` alle Standard, Riden als Quelle, 3-V-Bereich, unkalibriert gain = 1, offset = 0):**
+
+  | Riden | Keithley |
+  |---|---|
+  | 0,001 V | +0.00050 |
+  | 0,501 V | +0.49060 |
+  | 1,002 V | +0.98095 |
+  | 1,502 V | +1.47130 |
+  | 2,002 V | +1.96089 |
+  | 2,503 V | +2.45093 |
+
+  Ausgleichsgerade: Steigung 0,97947, Offset −0,27 mV, Restfehler ≤ ±0,41 mV (Riden-Auflösung 1 mV). → Linear; die −2,05 % sind fehlende Kalibrierung.
+- Die vorherigen Timing-/Polaritäts-/Takt-Experimente waren alle durch die PPS-Sperre maskiert. Diagnosewerkzeuge bleiben im Code: `KMM_*`-Stellschrauben (`hal_adc.c`), `KMM_PIN_TEST` und `MEAS_DEBUG_COUNTS` (`main.c`, beide 0), Software-LA `la_sample()`.
+
+## 2026-11-15 — DCV-Kalibrierung gegen Riden, Werte im PIC-Flash (`src/tasks/cal_dcv.h`)
+
+- **Vorgabe Nutzer:** Vorhandene Kalibrierwerte (EEPROM / Analogmodul) **nie überschreiben**. Geprüft: Die aktuelle Firmware linkt keinen EEPROM-, I²C-, NVM-, `calibration_*`- oder `settings_*`-Code (xc32-nm, nur Code/Daten-Symbole). Flashen per ipecmd beschreibt nur den PIC-Programmspeicher.
+- **Speicherort:** Konstanten-Tabelle `cal_dcv_table[]` in `src/tasks/cal_dcv.h` (Teil der Firmware, überlebt jedes Neuflashen, versioniert). Modell: Anzeige y = gain·x + offset → x = (y − offset)/gain, angewendet in `main.c` (`cal_dcv_apply`). Anzeige-Nachkommastellen pro Bereich ebenfalls dort (5½ Stellen).
+- **Referenz:** Riden-Rückmessung über Modbus (1 mV Auflösung, ~0,1 %). Genauer als das Riden kann die Kalibrierung nicht sein.
+
+  | Bereich | Punkte | gain | offset | Restfehler |
+  |---|---|---|---|---|
+  | 300 mV | 11 × 0…0,3 V | 0,976344 | −253,8 µV | ±0,5 mV (Riden-Stufen) |
+  | 3 V | 11 × 0…3,0 V | 0,9795148 | +43,2 µV | ±0,5 mV |
+  | 30 V | 11 × 0…30 V | 0,9793800 | −69 µV | ±1,1 mV |
+  | 300 V | 11 × 0…30 V (nur 10 % des Bereichs, Riden-Grenze 30 V im Skript) | 1,074483 | +0,73 mV | ±4,5 mV |
+
+- **Kontrolle mit Kalibrierung (neue Punkte):** 30 V: 5,0023 / 10,5020 / 19,7516 / 28,4989 / 30,0002 V gegen Riden 5,0025 / 10,5015 / 19,752 / 28,500 / 30,000 → ≤ ±1,1 mV. 3 V: 0,15035 / 1,00134 / 2,25154 / 2,95228 V gegen 0,1505 / 1,0015 / 2,252 / 2,953 → ≤ ±0,8 mV.
+- Bereich wird noch per `MEAS_RANGE` in `main.c` gewählt (Standard jetzt `ADC_RANGE_3`). 300-mV-Nullpunkt besser mit kurzgeschlossenem Eingang nachkalibrieren; 300-V-Bereich oberhalb 30 V ungeprüft.
