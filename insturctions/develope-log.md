@@ -351,3 +351,9 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **Test mit Riden:** 1,500 V eingeschwungen: Anzeige 1,50194…1,50196 (±1 Digit, vorher ±3…5). Sprung 1,5 → 2,0 V: nach 0,5 s 2,00165, danach 6 s Nachkriechen auf 2,00174 (Riden-Ausgang).
 - **`dispkyb.c` `display_clear()`:** Modus-Bits wurden in einem `char` zwischengespeichert → FLTR/AUTO/OHMS/REM gingen bei jedem `display_clear()` verloren. Jetzt `uint16_t`.
 - **LED-Zeile:** Mit `0xFFFF` als Modus erschien „alle Segmente“ auf der 1. Glasstelle statt in der LED-Zeile. Die LEDs hängen an **Bus 1** (FBFF), nicht an Bus 10 (F7FE); Bus 10 überlagert die 1. Glasstelle. `digit_bus_line = {8,6,4,2,0,9,7,5,3,10,1}`. Danach leuchten alle 10 LEDs (STO, RCL, FLTR, REM, VOLTS, OHMS, AMPS, AC, ZERO, AUTO); im Messbetrieb VOLTS + FLTR.
+
+## 2026-11-15 — Einheit in der Anzeige, 6½ Stellen, stärkere Mittelung
+
+- **`cal_dcv.h`:** pro Bereich Nachkommastellen, Anzeigeskala und Einheit: 300 mV → `+303.000mV` (5½, „mV“ braucht 2 Stellen), 3 V → `+3.030000V`, 30 V → `+30.30000V`, 300 V → `+303.0000V` (6½ Stellen wie im Original-README angegeben). `format_value()` hängt die Einheit an und richtet rechtsbündig auf 9 Glasstellen aus.
+- **Filter:** `FILTER_N` 30 → **100**. Bei 1,5 V (Riden): mit 30 springt die 7. Stelle um 3…12 µV pro Sekunde, mit 100 in 1…3-µV-Schritten. In beiden Fällen sinkt der Wert um ~30 µV in 10 s — Drift des Riden-Ausgangs, nicht des 199. Sprünge > 0,1 % FS setzen den Mittelwert weiterhin sofort zurück.
+- Die 7. Stelle ist Auflösung, keine Genauigkeit: Kalibrierreferenz ist das Riden (1 mV, ~0,1 %).

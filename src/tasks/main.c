@@ -11,6 +11,7 @@
 #include <hal_sys.h>
 #include <adc.h>
 #include <math.h>
+#include <string.h>
 #include <xc.h>
 
 #define MEAS_RANGE      ADC_RANGE_3
@@ -21,7 +22,7 @@
  * average restarts the average (fast response to steps). FLTR LED blinks
  * until the average is filled, then stays on. */
 #define FILTER_ENABLED    1
-#define FILTER_N          30
+#define FILTER_N          100     /* 6.5 digits: 30 (original 199) left the 7th digit jumping by 3..12 uV */
 #define FILTER_WINDOW     1e-3      /* fraction of range full scale */
 #define DISPLAY_DIGITS  9           /* visible digit positions on the glass */
 #define KMM_PIN_TEST 0          /* 1 = static P18 pin test instead of measuring */
@@ -53,29 +54,33 @@ static void show_count(char tag, int count)
  * digit position). No printf: keeps stack use small in the task. */
 static void format_value(char *out, double v)
 {
-	char digits[16];
+	char digits[20];
 	int n = 0;
 	int decimals = cal_dcv_decimals(MEAS_RANGE);
-	long scaled = lround(fabs(v) * pow(10.0, decimals));
+	const char *unit = cal_dcv_unit(MEAS_RANGE);
+	long long scaled = llround(fabs(v) * cal_dcv_scale(MEAS_RANGE) * pow(10.0, decimals));
 	int neg = (v < 0) && scaled != 0;
 
 	for (int i = 0; i < decimals; i++) {
 		digits[n++] = (char)('0' + scaled % 10);
 		scaled /= 10;
 	}
-	digits[n++] = '.';
+	if (decimals)
+		digits[n++] = '.';
 	do {
 		digits[n++] = (char)('0' + scaled % 10);
 		scaled /= 10;
-	} while (scaled && n < 14);
+	} while (scaled && n < 18);
 	digits[n++] = neg ? '-' : '+';
 
-	int visible = n - 1;            /* '.' does not use a position */
+	int visible = n - (decimals ? 1 : 0) + (int)strlen(unit);   /* '.' takes no position */
 	int k = 0;
 	for (int i = visible; i < DISPLAY_DIGITS; i++)
 		out[k++] = ' ';
 	while (n > 0)
 		out[k++] = digits[--n];
+	for (const char *u = unit; *u; u++)
+		out[k++] = *u;
 	out[k] = 0;
 }
 
@@ -236,7 +241,7 @@ static double filter_apply(double v, double full_scale, int *settled)
 static void measure_task(void *pvParameters)
 {
 	(void)pvParameters;
-	char buf[24];
+	char buf[32];
 
 	display_kyb_init();
 
