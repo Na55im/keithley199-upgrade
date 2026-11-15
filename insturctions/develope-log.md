@@ -357,3 +357,9 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **`cal_dcv.h`:** pro Bereich Nachkommastellen, Anzeigeskala und Einheit: 300 mV → `+303.000mV` (5½, „mV“ braucht 2 Stellen), 3 V → `+3.030000V`, 30 V → `+30.30000V`, 300 V → `+303.0000V` (6½ Stellen wie im Original-README angegeben). `format_value()` hängt die Einheit an und richtet rechtsbündig auf 9 Glasstellen aus.
 - **Filter:** `FILTER_N` 30 → **100**. Bei 1,5 V (Riden): mit 30 springt die 7. Stelle um 3…12 µV pro Sekunde, mit 100 in 1…3-µV-Schritten. In beiden Fällen sinkt der Wert um ~30 µV in 10 s — Drift des Riden-Ausgangs, nicht des 199. Sprünge > 0,1 % FS setzen den Mittelwert weiterhin sofort zurück.
 - Die 7. Stelle ist Auflösung, keine Genauigkeit: Kalibrierreferenz ist das Riden (1 mV, ~0,1 %).
+
+## 2026-11-15 — Autorange DCV
+
+- **`main.c`:** Bereichsfolge 300 mV → 3 V → 30 V → 300 V. Hoch bei Über-/Unterlauf, runter wenn |U| < 90 % (`AUTORANGE_DOWN`) des Endwerts des nächstkleineren Bereichs. Beim Wechsel `adc_set_range()`, Filter-Reset, erste Wandlung verworfen. AUTO-LED an. Startbereich `MEAS_RANGE` (3 V), abschaltbar mit `AUTORANGE 0`. Einheit/Nachkommastellen folgen dem aktiven Bereich.
+- **Test mit Präzisions-5-V-Quelle des Nutzers:** vorher fest 3 V → „OVERFLO“. Jetzt automatisch 30 V-Bereich, Anzeige **+4.99985 V** (±1 Digit, entspricht −30 ppm bei 5,00000 V); VOLTS, AUTO, FLTR leuchten.
+- Abwärts-/Aufwärtswechsel mit dem Riden noch nicht getestet (Präzisionsquelle hing am Eingang).

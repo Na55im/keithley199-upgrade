@@ -14,7 +14,12 @@
 #include <string.h>
 #include <xc.h>
 
-#define MEAS_RANGE      ADC_RANGE_3
+#define MEAS_RANGE      ADC_RANGE_3   /* start range */
+#define AUTORANGE       1
+#define AUTORANGE_DOWN  0.9           /* go down below 90 % of the lower range's full scale */
+
+static const adc_range dcv_ranges[] = { ADC_RANGE_300m, ADC_RANGE_3, ADC_RANGE_30, ADC_RANGE_300 };
+#define DCV_RANGE_COUNT ((int)(sizeof(dcv_ranges) / sizeof(dcv_ranges[0])))
 #include "cal_dcv.h"
 
 /* Front panel filter as in the original 199 (manual 2.6.3): running average
@@ -52,13 +57,13 @@ static void show_count(char tag, int count)
 
 /* Format value right-aligned with sign, e.g. "  +1.00012" (the '.' takes no
  * digit position). No printf: keeps stack use small in the task. */
-static void format_value(char *out, double v)
+static void format_value(char *out, double v, adc_range range)
 {
 	char digits[20];
 	int n = 0;
-	int decimals = cal_dcv_decimals(MEAS_RANGE);
-	const char *unit = cal_dcv_unit(MEAS_RANGE);
-	long long scaled = llround(fabs(v) * cal_dcv_scale(MEAS_RANGE) * pow(10.0, decimals));
+	int decimals = cal_dcv_decimals(range);
+	const char *unit = cal_dcv_unit(range);
+	long long scaled = llround(fabs(v) * cal_dcv_scale(range) * pow(10.0, decimals));
 	int neg = (v < 0) && scaled != 0;
 
 	for (int i = 0; i < decimals; i++) {
@@ -297,17 +302,42 @@ static void measure_task(void *pvParameters)
 	hal_adc_int_hook = la_int_hook;
 	display_setmode(DISP_VOLTS);
 	int blink = 0;
+	int ri = 0;
+	while (dcv_ranges[ri] != MEAS_RANGE)
+		ri++;
+	adc_range range = dcv_ranges[ri];
+	if (AUTORANGE)
+		display_setmode(DISP_AUTO);
 	for (;;) {
 		int flag = 0;
 		la_armed = 1;
-		double v = cal_dcv_apply(MEAS_RANGE, adc_read_value(ADC_CHANNEL_0, &flag));
+		double v = cal_dcv_apply(range, adc_read_value(ADC_CHANNEL_0, &flag));
+#if AUTORANGE
+		{
+			int nri = ri;
+			if (flag && ri < DCV_RANGE_COUNT - 1)
+				nri = ri + 1;                       /* over/underflow: up */
+			else if (!flag && ri > 0 &&
+			         fabs(v) < AUTORANGE_DOWN * adc_get_max(dcv_ranges[ri - 1]))
+				nri = ri - 1;                       /* fits the lower range: down */
+			if (nri != ri) {
+				ri = nri;
+				range = dcv_ranges[ri];
+				adc_set_range(range);
+				filter_reset();
+				/* discard the first conversion after switching (relays, settling) */
+				(void)adc_read_value(ADC_CHANNEL_0, &flag);
+				continue;
+			}
+		}
+#endif
 #if FILTER_ENABLED
 		if (flag) {
 			filter_reset();
 			display_clearmode(DISP_FLTR);
 		} else {
 			int settled;
-			v = filter_apply(v, adc_get_max(MEAS_RANGE), &settled);
+			v = filter_apply(v, adc_get_max(range), &settled);
 			if (settled)
 				display_setmode(DISP_FLTR);
 			else
@@ -323,7 +353,7 @@ static void measure_task(void *pvParameters)
 		else if (isnan(v) || isinf(v))
 			display_puts("  NAN");
 		else {
-			format_value(buf, v);
+			format_value(buf, v, range);
 			display_puts(buf);
 		}
 #if MEAS_DEBUG_COUNTS
