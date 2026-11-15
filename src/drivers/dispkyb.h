@@ -69,6 +69,7 @@ extern "C" {
     void display_setmode(disp_mode mode);
     void display_clearmode(disp_mode mode);
     void display_puts(char* c);
+    void display_show(const char *c);   /* atomic replace of the whole text */
     void display_putc(char c, int pos);
     void display_test();
     void display_clear();

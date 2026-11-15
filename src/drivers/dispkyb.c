@@ -41,7 +41,7 @@ static int highlighted_digit = 0;
  * = ~90 Hz frame rate. (Scanning the whole frame with busy-wait dwell inside
  * one ISR every 100 us starved FreeRTOS: tick ~10x too slow, OC3/ADC ISR
  * delayed by up to a frame.) */
-#define SLOT_PERIOD_US    1000u
+#define SLOT_PERIOD_US    500u      /* 11 slots -> ~180 Hz (1000 us = 90 Hz flickered) */
 #define FRAME_PERIOD_US   (SLOT_PERIOD_US * NUMBER_OF_CHARACTERS)
 #define KEY_HOLDOF_PERIOD 500             /* ms */
 #define KEY_REPEAT_PERIOD 100             /* ms */
@@ -98,6 +98,33 @@ void display_puts(char* c)
         i++;
         if (position > (NUMBER_OF_CHARACTERS - 2)) break;
     }
+}
+
+/* Replace the whole text atomically: build the new digit slots in a local
+ * buffer and copy them with interrupts off, so the multiplex ISR never shows
+ * a half-cleared or half-written frame (visible as flicker on every update).
+ * Keeps the mode LEDs (last slot) and the ADC indicator dot. */
+void display_show(const char *c)
+{
+    uint16_t buf[NUMBER_OF_CHARACTERS];
+    uint16_t adci = hal_io_displayport_map_char_to_segments('.');
+    int i = 0, pos = 0;
+
+    memset(buf, 0, sizeof(buf));
+    while (c[i] != 0 && pos <= NUMBER_OF_CHARACTERS - 2) {
+        if (c[i] == '.') {
+            if (pos > 0)
+                buf[pos - 1] |= adci;
+        } else {
+            buf[pos++] = hal_io_displayport_map_char_to_segments(c[i]);
+        }
+        i++;
+    }
+    unsigned int ist = hal_irq_disable();
+    buf[NUMBER_OF_CHARACTERS - 2] |= screen[NUMBER_OF_CHARACTERS - 2] & adci;
+    buf[NUMBER_OF_CHARACTERS - 1] = screen[NUMBER_OF_CHARACTERS - 1];
+    memcpy(screen, buf, sizeof(buf));
+    hal_irq_restore(ist);
 }
 
 void display_adc_indicator(bool set_value)

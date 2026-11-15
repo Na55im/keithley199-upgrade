@@ -377,3 +377,9 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 
 - **30-V-Bereich:** Das 2700 wechselt bei 10 V vom 10-V- in den 100-V-Bereich; beide unterscheiden sich um ~40 ppm (innerhalb 2700-Spez. 30/45 ppm). Fit über alle Punkte = Mittel.
 - **Kontrolle (Autorange, neue Punkte), 199 − 2700:** 100,298 vs 100,2936 mV (+4 µV); 0,50076x vs 0,500775 V (≈ −12 µV); 1,502005 vs 1,50200 (+3 ppm); 2,902357 vs 2,90235 (+2 ppm); 4,50186 vs 4,50193 (−16 ppm); 10,00086 vs 10,00119 (−33 ppm); 24,99958 vs 24,9997 (−5 ppm). → alle ≤ ±35 ppm, im Rahmen der 2700-Genauigkeit.
+
+## 2026-11-15 — Display-Flackern reduziert
+
+- **Ursachen:** (1) 11 Slots × 1 ms = ~90 Hz Bildwiederholung. (2) Bei jedem Messwert `display_clear()` + `display_puts()` → der Multiplex-ISR konnte eine halb gelöschte Anzeige zeigen (kurzes Dunkelblitzen ~8×/s).
+- **Fix `dispkyb.c`:** `SLOT_PERIOD_US` 1000 → **500** (~180 Hz, gleiche Helligkeit, da Tastverhältnis 1/11 bleibt). Neue Funktion **`display_show()`**: baut den Text in einem lokalen Puffer und kopiert ihn mit gesperrten Interrupts in `screen[]` (LED-Zeile und ADC-Punkt bleiben). `main.c` nutzt sie für alle Messwert-Ausgaben.
+- **Kamera-Check:** Einzelbilder (ohne Mittelung) zeigen jetzt immer die komplette Anzeige; vorher oft nur 1–3 Stellen pro Bild.

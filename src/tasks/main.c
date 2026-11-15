@@ -345,16 +345,15 @@ static void measure_task(void *pvParameters)
 		}
 #endif
 
-		display_clear();
 		if (flag == ADC_OVERFLOW)
-			display_puts(" OVERFLO");
+			display_show(" OVERFLO");
 		else if (flag == ADC_UNDERFLOW)
-			display_puts("-OVERFLO");
+			display_show("-OVERFLO");
 		else if (isnan(v) || isinf(v))
-			display_puts("  NAN");
+			display_show("  NAN");
 		else {
 			format_value(buf, v, range);
-			display_puts(buf);
+			display_show(buf);
 		}
 #if MEAS_DEBUG_COUNTS
 		vTaskDelay((1500 / portTICK_PERIOD_MS));
