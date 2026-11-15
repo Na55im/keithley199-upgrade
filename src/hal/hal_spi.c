@@ -22,7 +22,7 @@ static const uint16_t digit_select[11] = {
 };
 
 static const uint8_t digit_bus_line[11] = {
-	8, 6, 4, 2, 0, 9, 7, 5, 3, 1, 10
+	8, 6, 4, 2, 0, 9, 7, 5, 3, 10, 1
 };
 
 static void __attribute__((nomips16)) spi_bit_delay(volatile unsigned int loops)

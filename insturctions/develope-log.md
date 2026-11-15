@@ -344,3 +344,10 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 
 - **Kontrolle mit Kalibrierung (neue Punkte):** 30 V: 5,0023 / 10,5020 / 19,7516 / 28,4989 / 30,0002 V gegen Riden 5,0025 / 10,5015 / 19,752 / 28,500 / 30,000 → ≤ ±1,1 mV. 3 V: 0,15035 / 1,00134 / 2,25154 / 2,95228 V gegen 0,1505 / 1,0015 / 2,252 / 2,953 → ≤ ±0,8 mV.
 - Bereich wird noch per `MEAS_RANGE` in `main.c` gewählt (Standard jetzt `ADC_RANGE_3`). 300-mV-Nullpunkt besser mit kurzgeschlossenem Eingang nachkalibrieren; 300-V-Bereich oberhalb 30 V ungeprüft.
+
+## 2026-11-15 — Frontpanel-Filter (FLTR) + LED-Zeile repariert
+
+- **Filter (`main.c`):** Gleitender Mittelwert über `FILTER_N = 30` Wandlungen wie im Original (Handbuch 2.6.3). Fenster `FILTER_WINDOW = 1e-3` × Bereichsendwert (Originalwert im Scan nicht lesbar): liegt ein neuer Wert außerhalb, startet die Mittelung neu. FLTR-LED blinkt bis 30 Werte gemittelt sind, dann Dauerlicht; bei Über-/Unterlauf Reset. Angewendet nach der Kalibrierung. Abschaltbar mit `FILTER_ENABLED 0`.
+- **Test mit Riden:** 1,500 V eingeschwungen: Anzeige 1,50194…1,50196 (±1 Digit, vorher ±3…5). Sprung 1,5 → 2,0 V: nach 0,5 s 2,00165, danach 6 s Nachkriechen auf 2,00174 (Riden-Ausgang).
+- **`dispkyb.c` `display_clear()`:** Modus-Bits wurden in einem `char` zwischengespeichert → FLTR/AUTO/OHMS/REM gingen bei jedem `display_clear()` verloren. Jetzt `uint16_t`.
+- **LED-Zeile:** Mit `0xFFFF` als Modus erschien „alle Segmente“ auf der 1. Glasstelle statt in der LED-Zeile. Die LEDs hängen an **Bus 1** (FBFF), nicht an Bus 10 (F7FE); Bus 10 überlagert die 1. Glasstelle. `digit_bus_line = {8,6,4,2,0,9,7,5,3,10,1}`. Danach leuchten alle 10 LEDs (STO, RCL, FLTR, REM, VOLTS, OHMS, AMPS, AC, ZERO, AUTO); im Messbetrieb VOLTS + FLTR.

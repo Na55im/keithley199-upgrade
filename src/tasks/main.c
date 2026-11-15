@@ -15,6 +15,14 @@
 
 #define MEAS_RANGE      ADC_RANGE_3
 #include "cal_dcv.h"
+
+/* Front panel filter as in the original 199 (manual 2.6.3): running average
+ * of the last FILTER_N conversions; a reading outside the window around the
+ * average restarts the average (fast response to steps). FLTR LED blinks
+ * until the average is filled, then stays on. */
+#define FILTER_ENABLED    1
+#define FILTER_N          30
+#define FILTER_WINDOW     1e-3      /* fraction of range full scale */
 #define DISPLAY_DIGITS  9           /* visible digit positions on the glass */
 #define KMM_PIN_TEST 0          /* 1 = static P18 pin test instead of measuring */
 #define MEAS_DEBUG_COUNTS 0         /* show raw ADC counts A..D after each value */
@@ -195,6 +203,36 @@ static void kmm_strobe(int oc)
 }
 #endif
 
+static double filt_buf[FILTER_N];
+static int filt_count, filt_idx;
+
+static void filter_reset(void)
+{
+	filt_count = 0;
+	filt_idx = 0;
+}
+
+/* Returns the filtered value; *settled = 1 once FILTER_N readings are averaged. */
+static double filter_apply(double v, double full_scale, int *settled)
+{
+	if (filt_count) {
+		double sum = 0;
+		for (int i = 0; i < filt_count; i++)
+			sum += filt_buf[i];
+		if (fabs(v - sum / filt_count) > FILTER_WINDOW * full_scale)
+			filter_reset();
+	}
+	filt_buf[filt_idx] = v;
+	filt_idx = (filt_idx + 1) % FILTER_N;
+	if (filt_count < FILTER_N)
+		filt_count++;
+	double sum = 0;
+	for (int i = 0; i < filt_count; i++)
+		sum += filt_buf[i];
+	*settled = (filt_count == FILTER_N);
+	return sum / filt_count;
+}
+
 static void measure_task(void *pvParameters)
 {
 	(void)pvParameters;
@@ -252,10 +290,25 @@ static void measure_task(void *pvParameters)
 	}
 
 	hal_adc_int_hook = la_int_hook;
+	display_setmode(DISP_VOLTS);
+	int blink = 0;
 	for (;;) {
 		int flag = 0;
 		la_armed = 1;
 		double v = cal_dcv_apply(MEAS_RANGE, adc_read_value(ADC_CHANNEL_0, &flag));
+#if FILTER_ENABLED
+		if (flag) {
+			filter_reset();
+			display_clearmode(DISP_FLTR);
+		} else {
+			int settled;
+			v = filter_apply(v, adc_get_max(MEAS_RANGE), &settled);
+			if (settled)
+				display_setmode(DISP_FLTR);
+			else
+				blink = !blink, blink ? display_setmode(DISP_FLTR) : display_clearmode(DISP_FLTR);
+		}
+#endif
 
 		display_clear();
 		if (flag == ADC_OVERFLOW)

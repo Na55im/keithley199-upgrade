@@ -43,7 +43,7 @@ Fortschritt steht in `insturctions/develope-log.md` (neueste Einträge unten) �
 - Display: 10 Zeichen (14-Segment) + Modus-LEDs, Multiplex ~90 Hz, 11 Slots. Segmentbus an PORTD (aktiv high).
 - Digit-Select: **16-Bit-Wörter MSB-first per GPIO-Bitbang** (CLK=RG6 idle low, DATA=RC1), aktiv-low:
   `FFDF, FBFF, 7FEF, FDFF, BFF7, FEFF, DFFB, FF7F, EFFD, FFBF, F7FE` (Slot 10 = Mode-LEDs). Hardware-SPI2 passte nicht zum Original.
-- Zeichen-Slot→Bus-Zuordnung: `digit_bus_line[] = {8,6,4,2,0,9,7,5,3,1,10}` in `hal_spi.c` (per Kamera bestätigt). Glas hat 9 sichtbare Ziffern; untere Segment der 1. Stelle defekt.
+- Zeichen-Slot→Bus-Zuordnung: `digit_bus_line[] = {8,6,4,2,0,9,7,5,3,10,1}` in `hal_spi.c` (per Kamera bestätigt). Glas hat 9 sichtbare Ziffern; **LED-Zeile hängt an Bus 1** (Slot 10), Bus 10 überlagert die 1. Glasstelle (Slot 9 leer lassen). Unteres Segment der 1. Stelle defekt.
 - ADC: diskreter Charge-Balance-Wandler auf der Analogplatine; Start/Stop-Timing exakt (16,66 ms Integration). Steuerung über Schieberegister.
 - Schaltplan/Layout: `hw.kicad/` (KiCad 9). Schaltplan MCU-Symbol/BOM nennen noch **F128L**, Firmware zielt auf **F256L** (gleiches TQFP-100) – bei Gelegenheit angleichen.
 - Fertigungsdaten (`hw.kicad/gerber`, `production/`) sind älter als der Stand von Dez 2025 → vor Bestellung neu erzeugen.
