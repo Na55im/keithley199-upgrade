@@ -8,8 +8,9 @@
  *
  * Model per range (fit of displayed value y against reference x):
  *     y = gain * x + offset   ->   x = (y - offset) / gain
- * Reference: Riden RD6018P output read back over Modbus (1 mV resolution,
- * ~0.1 % accuracy), 11 points over the whole range. See develope-log.md.
+ * Reference: Keithley 2700 (6.5 digits, SLOW, filter on) read by camera,
+ * RD6018P as source, 11 points over the whole range (300 V range: 0..30 V).
+ * Previous Riden-only calibration: see develope-log.md.
  */
 #ifndef CAL_DCV_H
 #define CAL_DCV_H
@@ -27,10 +28,10 @@ typedef struct {
 
 static const cal_dcv_t cal_dcv_table[] = {
     /* range           gain        offset      dec  scale unit */
-    { ADC_RANGE_300m,  0.976344,   -253.8e-6,  3, 1e3, "mV" },   /* 2026-11-15, 0..0.3 V, resid +-0.5 mV (Riden 1 mV steps) */
-    { ADC_RANGE_3,     0.9795148,  43.2e-6,    6, 1.0, "V" },   /* 2026-11-15, 0..3.0 V, resid +-0.5 mV */
-    { ADC_RANGE_30,    0.9793800,  -69e-6,     5, 1.0, "V" },   /* 2026-11-15, 0..30 V, resid +-1.1 mV */
-    { ADC_RANGE_300,   1.074483,   0.73e-3,    4, 1.0, "V" },   /* 2026-11-15, only 0..30 V (Riden limit), resid +-4.5 mV */
+    { ADC_RANGE_300m,  0.9757958,  5.6e-6,     3, 1e3, "mV" },  /* 2026-11-15 vs Keithley 2700, 0..0.3 V, resid <= 19 uV */
+    { ADC_RANGE_3,     0.9794453,  24.8e-6,    6, 1.0, "V" },   /* 2026-11-15 vs Keithley 2700, 0..3.0 V, resid <= 17 uV */
+    { ADC_RANGE_30,    0.9794307,  -84.3e-6,   5, 1.0, "V" },   /* 2026-11-15 vs Keithley 2700, 0..30 V, resid <= 0.24 mV (2700 10 V/100 V range step ~40 ppm) */
+    { ADC_RANGE_300,   1.0746249,  -385.6e-6,  4, 1.0, "V" },   /* 2026-11-15 vs Keithley 2700, only 0..30 V, resid <= 0.55 mV */
 };
 
 static inline const cal_dcv_t *cal_dcv_find(adc_range r)

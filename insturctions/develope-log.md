@@ -363,3 +363,17 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **`main.c`:** Bereichsfolge 300 mV → 3 V → 30 V → 300 V. Hoch bei Über-/Unterlauf, runter wenn |U| < 90 % (`AUTORANGE_DOWN`) des Endwerts des nächstkleineren Bereichs. Beim Wechsel `adc_set_range()`, Filter-Reset, erste Wandlung verworfen. AUTO-LED an. Startbereich `MEAS_RANGE` (3 V), abschaltbar mit `AUTORANGE 0`. Einheit/Nachkommastellen folgen dem aktiven Bereich.
 - **Test mit Präzisions-5-V-Quelle des Nutzers:** vorher fest 3 V → „OVERFLO“. Jetzt automatisch 30 V-Bereich, Anzeige **+4.99985 V** (±1 Digit, entspricht −30 ppm bei 5,00000 V); VOLTS, AUTO, FLTR leuchten.
 - Abwärts-/Aufwärtswechsel mit dem Riden noch nicht getestet (Präzisionsquelle hing am Eingang).
+
+## 2026-11-15 — DCV-Nachkalibrierung gegen Keithley 2700
+
+- **Aufbau:** RD6018P als Quelle parallel an 199 und 2700 (6½ Stellen, SLOW, Filter, Autorange); vorher Sicherheitsprüfung (1 V, 0 mA, CV). Beide Anzeigen per Kamera (`tools/cal_vs_ref.py`: baut/flasht pro Bereich mit `AUTORANGE 0`, fährt 11 Punkte, 22 s Einschwingzeit, Kachelbild 2700 | 199). Werte aus den Bildern abgelesen; Fit der bisher kalibrierten 199-Anzeige gegen das 2700, mit der alten Kalibrierung verkettet (gain_neu = g·g2, offset_neu = g·o2 + o).
+
+  | Bereich | gain | offset | Restfehler | vorher (Riden) |
+  |---|---|---|---|---|
+  | 300 mV | 0,9757958 | +5,6 µV | ≤ 19 µV | 0,976344 / −253,8 µV |
+  | 3 V | 0,9794453 | +24,8 µV | ≤ 17 µV | 0,9795148 / +43,2 µV |
+  | 30 V | 0,9794307 | −84,3 µV | ≤ 0,24 mV | 0,9793800 / −69 µV |
+  | 300 V (nur 0…30 V) | 1,0746249 | −385,6 µV | ≤ 0,55 mV | 1,074483 / +0,73 mV |
+
+- **30-V-Bereich:** Das 2700 wechselt bei 10 V vom 10-V- in den 100-V-Bereich; beide unterscheiden sich um ~40 ppm (innerhalb 2700-Spez. 30/45 ppm). Fit über alle Punkte = Mittel.
+- **Kontrolle (Autorange, neue Punkte), 199 − 2700:** 100,298 vs 100,2936 mV (+4 µV); 0,50076x vs 0,500775 V (≈ −12 µV); 1,502005 vs 1,50200 (+3 ppm); 2,902357 vs 2,90235 (+2 ppm); 4,50186 vs 4,50193 (−16 ppm); 10,00086 vs 10,00119 (−33 ppm); 24,99958 vs 24,9997 (−5 ppm). → alle ≤ ±35 ppm, im Rahmen der 2700-Genauigkeit.
