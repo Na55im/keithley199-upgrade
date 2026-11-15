@@ -78,5 +78,6 @@ if __name__ == '__main__':
             print(f'{v:7.3f} V  RD {s["v_out"]:.3f}', flush=True)
     finally:
         rd.off(); print('output', 'ON' if rd.status()['output'] else 'off'); rd.close()
-    cv2.imwrite(f'{HERE}/captures/{name}.jpg', cv2.vconcat(rows))
-    open(f'{HERE}/captures/{name}.csv', 'w').write('set,rd\n' + '\n'.join(lines) + '\n')
+        if rows:   # keep what was captured, also after an abort
+            cv2.imwrite(f'{HERE}/captures/{name}.jpg', cv2.vconcat(rows))
+            open(f'{HERE}/captures/{name}.csv', 'w').write('set,rd\n' + '\n'.join(lines) + '\n')

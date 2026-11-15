@@ -51,7 +51,7 @@ Fortschritt steht in `insturctions/develope-log.md` (neueste Einträge unten) �
 ## Messaufbau / Test-Loop (Plan)
 - **Riden RD6018P** (Netzteil, Modbus-RTU über USB-Seriell, i. d. R. 115200 Baud, Slave 1). Verbindungstest:
   `python3 tools/rd6018_probe.py` (rein lesend, schreibt `tools/rd6018_probe_result.json`).
-- RD6018P ist **keine Referenz** (~0,1 %, 1-mV-/1-mA-Schritte, per Frontpanel bestätigt): nur für Linearität/Rauschen/Bereichsumschaltung, nicht für absolute Kalibrierung. Widerstandsmessung damit nicht prüfbar.
+- RD6018P: Skriptgrenze 60 V / 0,5 A (auf Nutzerwunsch, max. erreichbar ~56,9 V). Ist **keine Referenz** (~0,1 %, 1-mV-/1-mA-Schritte, per Frontpanel bestätigt): nur für Linearität/Rauschen/Bereichsumschaltung, nicht für absolute Kalibrierung. Widerstandsmessung damit nicht prüfbar.
 - Kamera: nur zur Sichtprüfung der Anzeige; für schnelles Multiplex-Verhalten Logikanalysator nutzen.
 - Messwerte des 199 bevorzugt per **SCPI über USB (FT230X)** lesen.
 

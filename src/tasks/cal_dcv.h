@@ -9,7 +9,7 @@
  * Model per range (fit of displayed value y against reference x):
  *     y = gain * x + offset   ->   x = (y - offset) / gain
  * Reference: Keithley 2700 (6.5 digits, SLOW, filter on) read by camera,
- * RD6018P as source, 11 points over the whole range (300 V range: 0..30 V).
+ * RD6018P as source, 11 points over the whole range (300 V range: 0..56.5 V).
  * Previous Riden-only calibration: see develope-log.md.
  */
 #ifndef CAL_DCV_H
@@ -31,7 +31,7 @@ static const cal_dcv_t cal_dcv_table[] = {
     { ADC_RANGE_300m,  0.9757958,  5.6e-6,     3, 1e3, "mV" },  /* 2026-11-15 vs Keithley 2700, 0..0.3 V, resid <= 19 uV */
     { ADC_RANGE_3,     0.9794453,  24.8e-6,    6, 1.0, "V" },   /* 2026-11-15 vs Keithley 2700, 0..3.0 V, resid <= 17 uV */
     { ADC_RANGE_30,    0.9794307,  -84.3e-6,   5, 1.0, "V" },   /* 2026-11-15 vs Keithley 2700, 0..30 V, resid <= 0.24 mV (2700 10 V/100 V range step ~40 ppm) */
-    { ADC_RANGE_300,   1.0746249,  -385.6e-6,  4, 1.0, "V" },   /* 2026-11-15 vs Keithley 2700, only 0..30 V, resid <= 0.55 mV */
+    { ADC_RANGE_300,   1.0746032,  -64.2e-6,   4, 1.0, "V" },   /* 2026-11-15 vs Keithley 2700, 0..56.5 V (Riden max), resid <= 0.33 mV */
 };
 
 static inline const cal_dcv_t *cal_dcv_find(adc_range r)

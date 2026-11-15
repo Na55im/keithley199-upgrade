@@ -384,3 +384,10 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **Fix `dispkyb.c`:** `SLOT_PERIOD_US` 1000 → **500** (~180 Hz, gleiche Helligkeit, da Tastverhältnis 1/11 bleibt). Neue Funktion **`display_show()`**: baut den Text in einem lokalen Puffer und kopiert ihn mit gesperrten Interrupts in `screen[]` (LED-Zeile und ADC-Punkt bleiben). `main.c` nutzt sie für alle Messwert-Ausgaben.
 - **Kamera-Check:** Einzelbilder (ohne Mittelung) zeigen jetzt immer die komplette Anzeige; vorher oft nur 1–3 Stellen pro Bild.
 - **Nachtrag (Nutzer sah weiter Flackern):** Der Software-LA-Hook (`la_int_hook`) lief noch bei jeder Messung und tastete ~10 ms mit **gesperrten Interrupts** ab → Multiplex stand ~8×/s still (eine Stelle hell, Rest dunkel). Hook jetzt nur noch mit `MEAS_DEBUG_COUNTS 1` aktiv.
+
+## 2026-11-15 — 300-V-Bereich bis 56,5 V gegen Keithley 2700
+
+- **Riden-Grenze** in `tools/rd6018.py` auf ausdrücklichen Wunsch des Nutzers von 30 V auf **60 V** angehoben (Strom weiter 0,5 A max., Läufe mit 0,1 A, OVP 58–61 V).
+- Das RD6018P erreicht mit 60,6 V Eingangsspannung nur ~56,9 V (bei 59,5 V Soll → CC-Meldung, Lauf sicher abgebrochen). Oberster Punkt daher 56,5 V. `cal_vs_ref.py` speichert die Bilder jetzt auch nach einem Abbruch.
+- **11 Punkte 0…56,5 V:** Restfehler ≤ 0,33 mV (Anzeigeauflösung 0,1 mV). Neu: gain **1,0746032**, offset **−64,2 µV** (vorher 1,0746249 / −385,6 µV aus 0…30 V).
+- **Kontrolle (Autorange):** 32,9989 vs 32,9985 V (+12 ppm), 44,9970 vs 44,9967 V (+7 ppm), 55,9928 vs 55,9934 V (−11 ppm).
