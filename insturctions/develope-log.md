@@ -462,3 +462,10 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
   | 25 V | 30 V | 25,00354 V / 85 mV | 25,00168 V / 134 mV | −75 ppm |
 
   Alle Differenzen liegen innerhalb der Unsicherheit der Mittelwerte (σ/√80). Die Streuung wird vom Riden dominiert (bei 25 V σ 85 mV), FAST rauscht nur ~1,4× mehr. **Ergebnis: Kalibrierung gilt auch im FAST-Modus, keine eigenen Konstanten nötig.** Die Streuung bei 25 V ist auffällig groß (Riden-Rauschen?) und für die Brummunterdrückung im FAST-Modus (keine ganze Netzperiode) noch nicht gesondert geprüft.
+
+## 2026-11-16 — KLAR-Oberfläche gebaut (`klar/`)
+
+- **Backend** `klar/backend/` (FastAPI + WebSocket, Python 3.14): `instrument/protocol.py` (Zeilen-Parser, Modi, Bereichsnamen), `instrument/transport.py` (pyserial mit Portsuche per `*IDN?`, Simulator), `device.py` (Lesethread, Live-Puffer ~4 h, Aufnahmen als CSV `timestamp;t_s;value;unit;raw;function;range;channel;flags`, Statistik inkl. Drift/Δ/Histogramm, Downsampling min/max, Grenzwert-Hinweise, Einstellungen), `server.py` (REST + WS, Same-Origin-Prüfung, liefert das gebaute Frontend). 10 Unit-Tests (`backend/tests`).
+- **Frontend** `klar/frontend/` (Vite + React + TS, uPlot, Inter/JetBrains Mono lokal gebündelt): Messen (nach `Main.reference.html`), Analyse (Bereichsauswahl → Statistik, Zoom per Mausrad, Notizen, PNG/CSV), Verbindungsdialog, Logger, Scanner-Kanäle, Einstellungen (Netzfrequenz, Integration, Filter, Stellen, Trigger, Tastensperre, Hell/Dunkel, Befehlskonsole), Hinweise. Handy-Layout mit Leiste unten.
+- **Mac-App:** `klar/make_app.sh` → `~/Applications/KLAR.app`. Laufzeit nach `~/Library/Application Support/KLAR`, Daten nach `~/KLAR`: eine App darf nicht aus dem Schreibtisch-Ordner lesen (`PermissionError` auf `.venv/pyvenv.cfg`).
+- Geprüft: Simulator (Messen, Analyse mit 2 Kanälen und Auswahl, Handy-Ansicht); echtes Gerät über die App (Verbindung, Live-Werte, Modus Schnell → 20 Messungen/s, Funktionswechsel DCA). Nicht geprüft: Touch-Panel-Layout 1280×720 als eigene Ansicht (nur Dunkel-Modus), LAN-Betrieb, Grenzwert-Hinweis am Gerät.

@@ -1,0 +1,76 @@
+/* KLAR Design Tokens – aus dem Design-Canvas übernommen */
+
+
+:root {
+  /* Farben – hell (Desktop, Handy) */
+  --bg: #F4F5F2;
+  --surface: #FFFFFF;
+  --surface-muted: #F1F2EF;
+  --chart-bg: #FAFBF9;
+  --border: #E3E5E0;
+  --border-strong: #D5D9D3;
+  --grid-line: #ECEEEA;
+  --text: #15181A;
+  --text-2: #3F4743;
+  --text-muted: #5D6560;
+
+  /* Akzent: genau EINE Bedeutung = aktiv / gewählt / ok */
+  --accent: #0B7B55;
+  --accent-strong: #075C40;
+  --accent-text: #0B5E42;
+  --accent-soft: #E3F3EC;
+  --accent-tint: #BFE6D3;
+  --accent-live: #12B886;
+
+  /* Hinweis/Warnung (einzige zweite Signalfarbe) */
+  --warn: #C2570C;
+  --warn-soft: #FCEBD7;
+  --warn-text: #8A3D05;
+  --rec: #D9480F;
+
+  /* Messwert-Display ("Instrumentenfenster") */
+  --display-bg: #111614;
+  --display-bg-2: #171E1B;
+  --display-chip: #1F2925;
+  --display-border: #34413B;
+  --display-text: #F2F5F3;
+  --display-muted: #A9B5AF;
+  --display-signal: #3DDC97;
+  --display-signal-text: #7FE3B5;
+
+  /* Touch-Panel (dunkel) */
+  --panel-bg: #0E1311;
+  --panel-surface: #151C19;
+  --panel-border: #222C28;
+  --panel-muted: #B9C4BF;
+
+  /* Typografie */
+  --font-ui: Inter, system-ui, sans-serif;
+  --font-num: 'JetBrains Mono', ui-monospace, monospace;
+  --fs-reading-xl: 112px;  /* Desktop-Hauptwert */
+  --fs-reading-l: 56px;    /* Handy / Analyse */
+  --fs-unit-ratio: 0.36;   /* Einheit relativ zum Wert */
+  --fs-title: 22px;
+  --fs-card-title: 15px;
+  --fs-body: 14px;
+  --fs-label: 12px;
+  --fs-axis: 11px;
+
+  /* Radien & Abstände (4-px-Raster) */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 24px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px;
+
+  --touch-min: 44px;
+}
+
+.reading {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-weight: 500;
+}
