@@ -1,6 +1,6 @@
 # Fernsteuer-Protokoll (UART3, P8/P9)
 
-Stand 2026-11-16. Firmware: `src/tasks/remote.c` (in `app_dmm.c` eingebunden).
+Stand 2026-11-16 (erweitert um SPEED, LINE, LOCK, HOLD, SCAN, Kanalfeld). Firmware: `src/tasks/remote.c` (in `app_dmm.c` eingebunden).
 PC-Seite: `tools/k199_app.py` + `tools/k199_app.html`.
 
 ## Verbindung
@@ -22,7 +22,7 @@ höchstens 63 Zeichen. Antwort `OK`, `ERR,<Grund>` oder die abgefragten Daten.
 | Befehl | Wirkung |
 |---|---|
 | `*IDN?` | `KEITHLEY,199-UPGRADE,0,<Build-Datum>` |
-| `*RST` | Grundzustand: DCV, Autorange, Filter ein, 6½ Stellen, Dauertrigger, kein Kanal |
+| `*RST` | Grundzustand: DCV, Autorange, Filter ein, 6½ Stellen, Dauertrigger, kein Kanal, kein Scan, Hold aus, Integration Netzperiode |
 | `STAT?` | Zustandszeile `S,…` (siehe unten) |
 | `READ?` | letzter Messwert als `R,…`-Zeile, sonst `ERR,NO READING` |
 | `STREAM 0\|1` | jeden Messwert unaufgefordert senden |
@@ -35,9 +35,14 @@ höchstens 63 Zeichen. Antwort `OK`, `ERR,<Grund>` oder die abgefragten Daten.
 | `DB 0\|1` | dB-Anzeige am Gerät (nur AC) |
 | `TRIG CONT\|ONE` | Dauer- oder Einzeltrigger |
 | `*TRG` | Messung auslösen (bei `TRIG ONE`) |
-| `CHAN 0…8` | Scannerkanal, 0 = keiner |
+| `CHAN 0…8` | fester Scannerkanal, 0 = keiner (beendet einen Scan) |
+| `SCAN <liste>\|0` | Kanäle reihum messen, z. B. `SCAN 1-3`, `SCAN 1,4,7`; `0` = aus. Nach jedem Umschalten wird eine Wandlung verworfen; mit Filter wird pro Kanal erst der volle Mittelwert (100 Wandlungen) gesendet |
+| `SPEED FAST\|LINE` | Integration ¼ Netzperiode (5 ms bei 50 Hz, ca. 21 Wandlungen/s) oder eine Netzperiode (20 ms, ca. 9/s, Brummunterdrückung) |
+| `LINE 50\|60` | Netzfrequenz (Integration 20 ms bzw. 16,67 ms) |
+| `LOCK 0\|1` | Tasten am Gerät sperren (zeigt „LOCKED“) |
+| `HOLD 0\|1` | Anzeige am Gerät einfrieren; Messwerte laufen weiter (Flag 64) |
 | `KEY <Name>` | Tastendruck: VOLTS OHMS AMPS AC ZERO AUTO DOWN UP SCANNER TRIGGER NEXT LOCAL |
-| `LOCAL` | Stream aus, REM-LED aus |
+| `LOCAL` | Stream aus, Sperre und Hold aus, REM-LED aus |
 
 Fehlergründe: `CMD` (unbekannt), `ARG` (Argument), `NO READING`, `LINE` (Zeile zu lang).
 Der erste Befehl schaltet die REM-LED ein.
@@ -46,18 +51,23 @@ Der erste Befehl schaltet die REM-LED ein.
 
 **Messwert** (bei `STREAM 1` nach jeder Wandlung, oder auf `READ?`):
 
-    R,<ms>,<wert>,<roh>,<funktion>,<bereich>,<flags>
+    R,<ms>,<wert>,<roh>,<funktion>,<bereich>,<flags>,<kanal>
 
 - `ms`: Millisekunden seit dem Einschalten
 - `wert`: wie angezeigt (nach Filter und Zero) in V, A oder Ω, auch bei dB
 - `roh`: diese eine Wandlung, kalibriert, vor Filter und Zero
-- `flags` (Summe): 1 Autorange, 2 Zero, 4 Filter, 8 Filter gefüllt, 16 Überlauf, 32 dB aktiv
+- `flags` (Summe): 1 Autorange, 2 Zero, 4 Filter, 8 Filter gefüllt, 16 Überlauf, 32 dB aktiv, 64 Hold
+- `kanal`: Scannerkanal dieser Messung (0 = keiner)
 - Überlauf: `wert` und `roh` sind ±9.9E+37
 
 **Zustand** (auf `STAT?` und nach jeder Änderung, auch durch Tasten oder Autorange,
 sobald ein Befehl empfangen wurde):
 
-    S,<funktion>,<bereich>,<endwert>,<auto>,<filter>,<stellen>,<zero>,<zero-bezug>,<db>,<CONT|ONE>,<kanal>,<stream>
+    S,<funktion>,<bereich>,<endwert>,<auto>,<filter>,<stellen>,<zero>,<zero-bezug>,<db>,<CONT|ONE>,<kanal>,<stream>,
+      <FAST|LINE>,<50|60>,<integration µs>,<lock>,<hold>,<scan-maske>
+
+Während eines Scans löst der Kanalwechsel keine `S`-Zeile aus (der Kanal steht in jeder `R`-Zeile).
+`scan-maske`: Bit n = Kanal n (z. B. 14 = Kanäle 1–3).
 
 Zahlen haben das Format `d.dddddddddE±ee`.
 

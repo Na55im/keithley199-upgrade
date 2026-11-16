@@ -14,7 +14,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 HISTORY = 200000                # readings kept in memory
 FUNCS = ['DCV', 'ACV', 'DCA', 'ACA', 'OHM2', 'OHM4']
-STATE_KEYS = ['func', 'ri', 'fs', 'auto', 'filter', 'digits', 'zero', 'zero_val', 'db', 'trig', 'chan', 'stream']
+STATE_KEYS = ['func', 'ri', 'fs', 'auto', 'filter', 'digits', 'zero', 'zero_val', 'db', 'trig', 'chan', 'stream',
+              'speed', 'line', 'int_us', 'lock', 'hold', 'scan']
 
 
 # --------------------------------------------------------------------------
@@ -28,7 +29,7 @@ class SimPort:
         self.out = queue.Queue()
         self.buf = b''
         self.s = dict(func='DCV', ri=1, auto=1, filter=1, digits=6, zero=0, zero_val=0.0, db=0,
-                      trig='CONT', chan=0, stream=0)
+                      trig='CONT', chan=0, stream=0, speed='LINE', line=50, lock=0, hold=0)
         self.t0 = time.time()
         self.filt = []
         self.last = 0.0
@@ -41,9 +42,10 @@ class SimPort:
 
     def _state(self):
         s = self.s
-        return 'S,%s,%d,%.9E,%d,%d,%d,%d,%.9E,%d,%s,%d,%d\n' % (
+        return 'S,%s,%d,%.9E,%d,%d,%d,%d,%.9E,%d,%s,%d,%d,%s,%d,%d,%d,%d,%d\n' % (
             s['func'], s['ri'], self._fs(), s['auto'], s['filter'], s['digits'], s['zero'],
-            s['zero_val'] if s['zero'] else 0, s['db'], s['trig'], s['chan'], s['stream'])
+            s['zero_val'] if s['zero'] else 0, s['db'], s['trig'], s['chan'], s['stream'],
+            s['speed'], s['line'], (5000 if s['speed'] == 'FAST' else 20000) * 50 // s['line'], s['lock'], s['hold'], 0)
 
     def _run(self):
         while self.alive:
@@ -62,7 +64,7 @@ class SimPort:
             ms = int(t * 1000)
             if true > fs:
                 if s['stream']:
-                    self.out.put(('R,%d,9.900000000E+37,9.900000000E+37,%s,%d,%d\n' % (ms, s['func'], s['ri'], 16 | self._fl())).encode())
+                    self.out.put(('R,%d,9.900000000E+37,9.900000000E+37,%s,%d,%d,%d\n' % (ms, s['func'], s['ri'], 16 | self._fl(), s['chan'])).encode())
                 continue
             raw = true + random.gauss(0, fs * 3e-6)
             if s['filter']:
@@ -74,11 +76,11 @@ class SimPort:
             self.last = v
             if s['zero']: v -= s['zero_val']
             if s['stream']:
-                self.out.put(('R,%d,%.9E,%.9E,%s,%d,%d\n' % (ms, v, raw, s['func'], s['ri'], self._fl() | (8 if settled else 0))).encode())
+                self.out.put(('R,%d,%.9E,%.9E,%s,%d,%d,%d\n' % (ms, v, raw, s['func'], s['ri'], self._fl() | (8 if settled else 0), s['chan'])).encode())
 
     def _fl(self):
         s = self.s
-        return s['auto'] | s['zero'] << 1 | s['filter'] << 2 | (32 if s['db'] and s['func'] in ('ACV', 'ACA') else 0)
+        return s['auto'] | s['zero'] << 1 | s['filter'] << 2 | (32 if s['db'] and s['func'] in ('ACV', 'ACA') else 0) | s['hold'] << 6
 
     def write(self, data):
         self.buf += data
@@ -111,9 +113,12 @@ class SimPort:
         elif cmd == '*TRG': pass
         elif cmd == 'CHAN' and arg.isdigit() and int(arg) <= 8: s['chan'] = int(arg)
         elif cmd == '*RST': s.update(func='DCV', ri=1, auto=1, filter=1, digits=6, zero=0, db=0, trig='CONT', chan=0)
-        elif cmd == 'LOCAL': s['stream'] = 0
+        elif cmd == 'SPEED' and arg in ('FAST', 'LINE'): s['speed'] = arg
+        elif cmd == 'LINE' and arg in ('50', '60'): s['line'] = int(arg)
+        elif cmd in ('LOCK', 'HOLD') and arg in onoff: s[cmd.lower()] = onoff[arg]
+        elif cmd == 'LOCAL': s.update(stream=0, lock=0, hold=0)
         elif cmd == 'KEY': pass
-        else: ok = 'ERR,CMD\n' if cmd not in ('FUNC', 'RANG', 'FILT', 'DIG', 'ZERO', 'DB', 'TRIG', 'CHAN', 'STREAM') else 'ERR,ARG\n'
+        else: ok = 'ERR,CMD\n' if cmd not in ('FUNC', 'RANG', 'FILT', 'DIG', 'ZERO', 'DB', 'TRIG', 'CHAN', 'STREAM', 'SPEED', 'LINE', 'LOCK', 'HOLD') else 'ERR,ARG\n'
         self.out.put(ok.encode())
         if ok == 'OK\n': self.out.put(self._state().encode())
 
@@ -207,7 +212,7 @@ class Link:
                 os.makedirs(os.path.join(HERE, 'logs'), exist_ok=True)
                 self.logname = os.path.join(HERE, 'logs', time.strftime('k199_%Y%m%d_%H%M%S.csv'))
                 self.logfile = open(self.logname, 'w')
-                self.logfile.write('time_iso,unix_s,device_ms,value,raw,function,range,flags\n')
+                self.logfile.write('time_iso,unix_s,device_ms,value,raw,function,range,flags,channel\n')
         self.publish(self.info())
 
     # -- device side --
@@ -259,25 +264,27 @@ class Link:
             return
         f = line.split(',')
         try:
-            if f[0] == 'R' and len(f) == 7:
+            if f[0] == 'R' and len(f) in (7, 8):
                 now = time.time()
-                r = [now, int(f[1]), float(f[2]), float(f[3]), f[4], int(f[5]), int(f[6])]
+                r = [now, int(f[1]), float(f[2]), float(f[3]), f[4], int(f[5]), int(f[6]),
+                     int(f[7]) if len(f) == 8 else 0]
                 with self.lock:
                     self.readings.append(r)
                     if len(self.readings) > HISTORY:
                         del self.readings[:HISTORY // 10]
                     if self.logfile:
-                        self.logfile.write('%s.%03d,%.3f,%d,%.9E,%.9E,%s,%d,%d\n' % (
+                        self.logfile.write('%s.%03d,%.3f,%d,%.9E,%.9E,%s,%d,%d,%d\n' % (
                             time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(now)), int(now * 1000) % 1000,
-                            now, r[1], r[2], r[3], r[4], r[5], r[6]))
+                            now, *r[1:]))
                         self.logfile.flush()
                 self.publish(dict(t='r', r=r))
                 return
-            if f[0] == 'S' and len(f) == 13:
+            if f[0] == 'S' and len(f) >= 13:
                 vals = f[1:]
                 st = dict(zip(STATE_KEYS, vals))
-                for k in ('ri', 'auto', 'filter', 'digits', 'zero', 'db', 'chan', 'stream'):
-                    st[k] = int(st[k])
+                for k in ('ri', 'auto', 'filter', 'digits', 'zero', 'db', 'chan', 'stream', 'line', 'int_us', 'lock', 'hold', 'scan'):
+                    if k in st:
+                        st[k] = int(st[k])
                 st['fs'] = float(st['fs']); st['zero_val'] = float(st['zero_val'])
                 func_changed = st['func'] != self.state.get('func')
                 self.state = st
@@ -331,9 +338,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/csv':
             with self.link.lock:
                 rows = list(self.link.readings)
-            out = ['time_iso,unix_s,device_ms,value,raw,function,range,flags']
+            out = ['time_iso,unix_s,device_ms,value,raw,function,range,flags,channel']
             for r in rows:
-                out.append('%s.%03d,%.3f,%d,%.9E,%.9E,%s,%d,%d' % (
+                out.append('%s.%03d,%.3f,%d,%.9E,%.9E,%s,%d,%d,%d' % (
                     time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(r[0])), int(r[0] * 1000) % 1000, *r))
             self._send(200, 'text/csv', ('\n'.join(out) + '\n').encode(),
                        {'Content-Disposition': time.strftime('attachment; filename="k199_%Y%m%d_%H%M%S.csv"')})

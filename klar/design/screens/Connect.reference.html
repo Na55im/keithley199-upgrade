@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>KLAR – Gerät verbinden</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0B7B55}a:hover{color:#075C40}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 960px; height: 640px; box-sizing: border-box; background: #E9EBE7; font-family: Inter, system-ui, sans-serif; color: #15181A; display: flex; align-items: center; justify-content: center">
+  <section role="dialog" aria-labelledby="ct" style="width: 640px; box-sizing: border-box; background: #FFFFFF; border-radius: 24px; padding: 32px; display: flex; flex-direction: column; gap: 24px; box-shadow: 0 24px 60px rgba(17,22,20,0.14)">
+    <div style="display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 13px; font-weight: 600; color: #0B7B55">Schritt 2 von 3</span>
+      <h1 id="ct" style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em">Gerät gefunden</h1>
+      <p style="margin: 0; font-size: 15px; color: #5D6560; line-height: 1.5">KLAR hat den Adapter erkannt und am GPIB-Bus nach Messgeräten gesucht.</p>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: 18px; border: 2px solid #0B7B55; background: #F2FAF6">
+      <div style="width: 56px; height: 56px; border-radius: 14px; background: #111614; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; color: #3DDC97; font-weight: 600; font-size: 15px">199</div>
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 17px; font-weight: 700">Keithley 199 System DMM/Scanner</span>
+        <span style="font-size: 13px; color: #3F4743">GPIB-Adresse 26 · erkannt an Antwort „NDCV“ · Scanner-Karte vorhanden</span>
+      </div>
+      <span style="height: 28px; padding: 0 10px; border-radius: 14px; background: #0B7B55; color: #FFFFFF; font-size: 12px; font-weight: 600; display: flex; align-items: center">bereit</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 0; border: 1px solid #E3E5E0; border-radius: 16px; overflow: hidden">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; font-size: 14px"><span style="color: #5D6560">Adapter</span><span style="font-weight: 600">xyphro UsbGpib V2 (USBTMC)</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; font-size: 14px; border-top: 1px solid #E3E5E0"><span style="color: #5D6560">VISA-Adresse</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px">USB0::0x03EB::0x2065::[SERIENNR.]::INSTR</span></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; font-size: 14px; border-top: 1px solid #E3E5E0"><span style="color: #5D6560">Testmessung</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #0B5E42">+1.024381 V ✓</span></div>
+    </div>
+
+    <details style="font-size: 14px; color: #3F4743">
+      <summary style="cursor: pointer; font-weight: 600; min-height: 32px">Erweitert: anderer Adapter (AR488 / Prologix), Adresse manuell</summary>
+    </details>
+
+    <div style="display: flex; justify-content: flex-end; gap: 12px">
+      <button type="button" style="height: 48px; padding: 0 20px; border-radius: 12px; border: 1px solid #D5D9D3; background: #FFFFFF; color: #15181A; font-size: 15px; font-weight: 600; cursor: pointer">Erneut suchen</button>
+      <a href="Main.dc.html" style="height: 48px; padding: 0 24px; border-radius: 12px; background: #15181A; color: #FFFFFF; font-size: 15px; font-weight: 600; text-decoration: none; display: flex; align-items: center">Verbinden &amp; messen</a>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

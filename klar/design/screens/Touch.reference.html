@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>KLAR – Touch-Panel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#7FE3B5}a:hover{color:#B5F0D3}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 1280px; height: 720px; box-sizing: border-box; display: flex; background: #0E1311; color: #F2F5F3; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <nav aria-label="Menüleiste" style="width: 112px; flex-shrink: 0; box-sizing: border-box; padding: 20px 12px; display: flex; flex-direction: column; gap: 8px; background: #151C19; border-right: 1px solid #222C28">
+    <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+      <button type="button" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}" style="{{t.style}}">
+        <span style="font-size: 22px; font-family: 'JetBrains Mono', monospace; font-weight: 600; line-height: 1">{{t.glyph}}</span>
+        <span style="font-size: 13px; font-weight: 600">{{t.label}}</span>
+      </button>
+    </sc-for>
+  </nav>
+
+  <sc-if value="{{isHome}}" hint-placeholder-val="{{ true }}">
+    <div style="flex: 1; min-width: 0; box-sizing: border-box; padding: 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 16px">
+
+      <section aria-label="Messwert" style="grid-column: span 2; grid-row: span 2; border-radius: 24px; background: #151C19; border: 1px solid #222C28; padding: 28px; display: flex; flex-direction: column; justify-content: space-between">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <span style="font-size: 20px; font-weight: 600">Gleichspannung</span>
+          <span style="height: 30px; padding: 0 12px; border-radius: 15px; background: #222C28; color: #B9C4BF; font-size: 14px; display: flex; align-items: center">Auto · 3 V</span>
+          <span style="margin-left: auto; display: flex; align-items: center; gap: 8px; color: #7FE3B5; font-size: 14px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #3DDC97"></span>live</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 14px">
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 120px; font-weight: 500; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums">+1.024381</span>
+          <span style="font-size: 44px; font-weight: 600; color: #B9C4BF">V</span>
+        </div>
+        <svg viewBox="0 0 600 80" width="100%" height="80" role="img" aria-label="Verlauf der letzten Minute" style="display: block">
+          <path d="{{spark}}" stroke="#3DDC97" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+        </svg>
+        <div style="display: flex; gap: 28px; font-size: 14px; color: #B9C4BF">
+          <span>Min <span style="font-family: 'JetBrains Mono', monospace; color: #F2F5F3">1.023618</span></span>
+          <span>Max <span style="font-family: 'JetBrains Mono', monospace; color: #F2F5F3">1.025104</span></span>
+          <span>σ <span style="font-family: 'JetBrains Mono', monospace; color: #F2F5F3">2.8e-4</span></span>
+        </div>
+      </section>
+
+      <button type="button" style="border-radius: 24px; background: #151C19; border: 1px solid #222C28; color: #F2F5F3; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; text-align: left; cursor: pointer">
+        <span style="font-size: 14px; color: #B9C4BF">Funktion</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 48px; font-weight: 600">V⎓</span>
+        <span style="font-size: 14px; color: #B9C4BF">Tippen zum Wechseln</span>
+      </button>
+
+      <section aria-label="Messmodus" style="border-radius: 24px; background: #151C19; border: 1px solid #222C28; padding: 22px; display: flex; flex-direction: column; justify-content: space-between">
+        <span style="font-size: 14px; color: #B9C4BF">Messmodus</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+          <button type="button" aria-label="Schneller" onClick="{{prevMode}}" style="width: 56px; height: 56px; border-radius: 16px; border: none; background: #222C28; color: #F2F5F3; font-size: 26px; cursor: pointer">‹</button>
+          <span style="display: flex; flex-direction: column; align-items: center; gap: 2px">
+            <span style="font-size: 24px; font-weight: 700">{{mode.name}}</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #B9C4BF">{{mode.tag}}</span>
+          </span>
+          <button type="button" aria-label="Genauer" onClick="{{nextMode}}" style="width: 56px; height: 56px; border-radius: 16px; border: none; background: #222C28; color: #F2F5F3; font-size: 26px; cursor: pointer">›</button>
+        </div>
+        <div style="display: flex; gap: 6px">
+          <sc-for list="{{modeDots}}" as="d" hint-placeholder-count="3"><span style="{{d.style}}"></span></sc-for>
+        </div>
+      </section>
+
+      <button type="button" style="border-radius: 24px; background: #3DDC97; border: none; color: #0E1311; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; text-align: left; cursor: pointer">
+        <span style="font-size: 14px; font-weight: 600">Aufnahme</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 36px; font-weight: 600">00:14:32</span>
+        <span style="font-size: 14px; font-weight: 600">4 361 Punkte · Stopp</span>
+      </button>
+
+      <button type="button" style="border-radius: 24px; background: #151C19; border: 1px solid #222C28; color: #F2F5F3; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; text-align: left; cursor: pointer">
+        <span style="font-size: 14px; color: #B9C4BF">Verbindung</span>
+        <span style="font-size: 22px; font-weight: 700">Keithley 199</span>
+        <span style="font-size: 14px; color: #7FE3B5">UsbGpib · Adresse 26</span>
+      </button>
+
+      <button type="button" style="border-radius: 24px; background: #2A1E12; border: 1px solid #5C3A17; color: #FBD9B4; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; text-align: left; cursor: pointer">
+        <span style="font-size: 14px">Hinweis · 1</span>
+        <span style="font-size: 20px; font-weight: 700; line-height: 1.25">Kalibrierung überfällig</span>
+        <span style="font-size: 14px">Details ansehen</span>
+      </button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isSettings}}" hint-placeholder-val="{{ false }}">
+    <div style="flex: 1; min-width: 0; box-sizing: border-box; padding: 28px 32px; display: flex; flex-direction: column; gap: 20px">
+      <h1 style="margin: 0; font-size: 28px; font-weight: 700">Einstellungen</h1>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        <div style="border-radius: 20px; background: #151C19; border: 1px solid #222C28; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 18px; font-weight: 600">Verbindung</span><span style="font-size: 14px; color: #B9C4BF">Adapter, GPIB-Adresse, Zeitlimit, Testen</span></div>
+        <div style="border-radius: 20px; background: #151C19; border: 1px solid #222C28; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 18px; font-weight: 600">Messung</span><span style="font-size: 14px; color: #B9C4BF">Integration, Filter, Trigger, Abtastrate</span></div>
+        <div style="border-radius: 20px; background: #151C19; border: 1px solid #222C28; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 18px; font-weight: 600">Speicher</span><span style="font-size: 14px; color: #B9C4BF">Ablageordner, Dateiformat, Formatieren</span></div>
+        <div style="border-radius: 20px; background: #151C19; border: 1px solid #222C28; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 18px; font-weight: 600">Kalibrierung</span><span style="font-size: 14px; color: #B9C4BF">Nullabgleich, Erinnerung, Historie</span></div>
+        <div style="border-radius: 20px; background: #151C19; border: 1px solid #222C28; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 18px; font-weight: 600">Anzeige</span><span style="font-size: 14px; color: #B9C4BF">Hell/Dunkel, Stellenzahl, Ruhezustand</span></div>
+        <div style="border-radius: 20px; background: #151C19; border: 1px solid #222C28; padding: 20px; display: flex; flex-direction: column; gap: 6px"><span style="font-size: 18px; font-weight: 600">Über</span><span style="font-size: 14px; color: #B9C4BF">Gerät, Firmware, Software-Version</span></div>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; border-radius: 20px; background: #151C19; border: 1px solid #222C28; padding: 18px 20px">
+        <span style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 16px; font-weight: 600">Frontpanel sperren (REN)</span><span style="font-size: 13px; color: #B9C4BF">Tasten am Keithley sind während der Fernsteuerung gesperrt</span></span>
+        <label style="display: flex; align-items: center; gap: 10px; font-size: 14px"><input type="checkbox" checked style="width: 24px; height: 24px; accent-color: #3DDC97">Ein</label>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'home', mode: 1 }; }
+  renderVals() {
+    const T = [
+      { id: 'home', label: 'Start', glyph: '⌂' },
+      { id: 'measure', label: 'Messen', glyph: 'V' },
+      { id: 'log', label: 'Logger', glyph: '≡' },
+      { id: 'settings', label: 'Einstell.', glyph: '⚙' },
+      { id: 'hints', label: 'Hinweise', glyph: '!' }
+    ];
+    const tabs = T.map((t) => {
+      const on = t.id === this.state.tab;
+      return {
+        label: t.label, glyph: t.glyph, pressed: on ? 'true' : 'false',
+        pick: () => this.setState({ tab: t.id }),
+        style: 'height: 96px; border-radius: 18px; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; ' + (on ? 'background: #3DDC97; color: #0E1311;' : 'background: transparent; color: #B9C4BF;')
+      };
+    });
+    const M = [{ name: 'Schnell', tag: '4½ · S0' }, { name: 'Standard', tag: '5½ · S1' }, { name: 'Präzise', tag: '5½ · Filter' }];
+    const m = this.state.mode;
+    const rnd = (i) => { const x = Math.sin(i * 12.9898 + 2.2) * 43758.5453; return x - Math.floor(x); };
+    let spark = '';
+    for (let i = 0; i < 80; i++) { spark += (i ? 'L' : 'M') + (i * 600 / 79).toFixed(1) + ' ' + (40 - Math.sin(i / 7) * 16 - (rnd(i) - 0.5) * 18).toFixed(1); }
+    return {
+      tabs, spark,
+      isHome: this.state.tab !== 'settings',
+      isSettings: this.state.tab === 'settings',
+      mode: M[m],
+      prevMode: () => this.setState({ mode: Math.max(0, m - 1) }),
+      nextMode: () => this.setState({ mode: Math.min(2, m + 1) }),
+      modeDots: M.map((x, i) => ({ style: 'flex: 1; height: 6px; border-radius: 3px; background: ' + (i <= m ? '#3DDC97' : '#2B3732') }))
+    };
+  }
+}
+</script>
+</body>
+</html>

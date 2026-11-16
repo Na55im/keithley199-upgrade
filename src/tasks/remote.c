@@ -6,7 +6,7 @@
  * Line protocol, see insturctions/remote-protocol.md. Commands end with LF
  * (CR is ignored), are case-insensitive, one command per line.
  * Device -> host lines start with a tag:
- *   R,<ms>,<value>,<raw>,<func>,<range>,<flags>   reading (STREAM 1 or READ?)
+ *   R,<ms>,<value>,<raw>,<func>,<range>,<flags>,<chan>   reading (STREAM 1 or READ?)
  *   S,...                                         state (after every change)
  *   OK / ERR,<text>                               command result
  *   other                                         query answer
@@ -37,6 +37,7 @@ static const char *const func_names[F_COUNT] = { "DCV", "ACV", "DCA", "ACA", "OH
 #define RF_SETTLED  8
 #define RF_OVERFLOW 16
 #define RF_DB       32
+#define RF_HOLD     64
 
 static void rem_rx_cb(hal_uart_port port, uint8_t data, hal_uart_error error)
 {
@@ -121,10 +122,11 @@ static void rem_err(const char *t) { rem_puts("ERR,"); rem_puts(t); rem_putc('\n
 static int rem_flags(void)
 {
 	return (st.autorange ? RF_AUTO : 0) | (st.zero ? RF_ZERO : 0) | (st.filter ? RF_FILTER : 0) |
-	       ((st.db && fdef[st.func].ac) ? RF_DB : 0);
+	       ((st.db && fdef[st.func].ac) ? RF_DB : 0) | (st.hold ? RF_HOLD : 0);
 }
 
-/* S,<func>,<range idx>,<full scale>,<auto>,<filter>,<digits>,<zero>,<zero val>,<db>,<trig>,<chan>,<stream> */
+/* S,<func>,<range idx>,<full scale>,<auto>,<filter>,<digits>,<zero>,<zero val>,<db>,<trig>,<chan>,<stream>,
+ *   <FAST|LINE>,<50|60>,<integration us>,<lock>,<hold>,<scan mask> */
 static void rem_send_state(void)
 {
 	rem_puts("S,"); rem_puts(func_names[st.func]);
@@ -139,6 +141,12 @@ static void rem_send_state(void)
 	rem_putc(','); rem_puts(st.one_shot ? "ONE" : "CONT");
 	rem_putc(','); rem_puti(st.channel);
 	rem_putc(','); rem_puti(rem_stream);
+	rem_putc(','); rem_puts(st.fast ? "FAST" : "LINE");
+	rem_putc(','); rem_puti(st.line60 ? 60 : 50);
+	rem_putc(','); rem_puti(integration_us());
+	rem_putc(','); rem_puti(st.lock);
+	rem_putc(','); rem_puti(st.hold);
+	rem_putc(','); rem_puti(st.scan_mask);
 	rem_putc('\n');
 }
 
@@ -147,8 +155,10 @@ static void remote_state_check(void)
 {
 	unsigned int sum = (unsigned)st.func | (unsigned)st.ri << 3 | (unsigned)st.autorange << 7 |
 	                   (unsigned)st.filter << 8 | (unsigned)st.digits << 9 | (unsigned)st.zero << 13 |
-	                   (unsigned)st.db << 14 | (unsigned)st.one_shot << 15 | (unsigned)st.channel << 16 |
-	                   (unsigned)rem_stream << 20;
+	                   (unsigned)st.db << 14 | (unsigned)st.one_shot << 15 |
+	                   (unsigned)(st.scan_mask ? 0 : st.channel) << 16 |   /* scan: channel is in every R line */
+	                   (unsigned)rem_stream << 20 | (unsigned)st.fast << 21 | (unsigned)st.line60 << 22 |
+	                   (unsigned)st.lock << 23 | (unsigned)st.hold << 24 | st.scan_mask << 25;
 	if (st.zero)
 		sum ^= (unsigned int)(long long)(st.zero_val * 1e7) * 2654435761u;
 	if (sum != rem_state_sum) {
@@ -158,17 +168,19 @@ static void remote_state_check(void)
 	}
 }
 
-/* R,<ms since power on>,<value>,<raw>,<func>,<range idx>,<flags>
+/* R,<ms since power on>,<value>,<raw>,<func>,<range idx>,<flags>,<scanner channel>
  * value = as displayed (filter, zero; volts/amps/ohms, not dB), raw = this
  * conversion before filter and zero. Overflow: value and raw are 9.9E+37. */
 static void rem_send_reading(double value, double raw, int extra)
 {
-	rem_puts("R,"); rem_putu((unsigned long long)xTaskGetTickCount() * portTICK_PERIOD_MS);
+	/* portTICK_PERIOD_MS is 1 at 600 Hz (integer division): convert explicitly */
+	rem_puts("R,"); rem_putu((unsigned long long)xTaskGetTickCount() * 1000u / configTICK_RATE_HZ);
 	rem_putc(','); rem_putd(value);
 	rem_putc(','); rem_putd(raw);
 	rem_putc(','); rem_puts(func_names[st.func]);
 	rem_putc(','); rem_puti(st.ri);
 	rem_putc(','); rem_puti(rem_flags() | extra);
+	rem_putc(','); rem_puti(st.channel);
 	rem_putc('\n');
 }
 
@@ -204,6 +216,8 @@ static void remote_reading(double value, double raw, int settled, int overflow)
 	remote_state_check();
 	if (!rem_stream)
 		return;
+	if (st.scan_mask && st.filter && !settled && !overflow)
+		return;                 /* scan: only the finished reading of each channel */
 	if (overflow)
 		rem_send_reading(overflow < 0 ? -9.9e37 : 9.9e37, overflow < 0 ? -9.9e37 : 9.9e37, RF_OVERFLOW);
 	else
@@ -226,6 +240,26 @@ static int rem_onoff(const char *a, int *v)
 	if (rem_eq(a, "1") || rem_eq(a, "ON"))  { *v = 1; return 1; }
 	if (rem_eq(a, "0") || rem_eq(a, "OFF")) { *v = 0; return 1; }
 	return 0;
+}
+
+/* "1-4", "1,3,5", "2" -> channel bit mask (bits 1..8); 0 on error */
+static unsigned int rem_chanlist(const char *a)
+{
+	unsigned int m = 0;
+	while (*a) {
+		if (*a < '1' || *a > '8') return 0;
+		int lo = *a++ - '0', hi = lo;
+		if (*a == '-') {
+			a++;
+			if (*a < '1' || *a > '8') return 0;
+			hi = *a++ - '0';
+		}
+		if (hi < lo) return 0;
+		for (int c = lo; c <= hi; c++) m |= 1u << c;
+		if (*a == ',') a++;
+		else if (*a) return 0;
+	}
+	return m;
 }
 
 static const struct { const char *name; lkey_t key; } rem_keys[] = {
@@ -251,6 +285,8 @@ static void rem_exec(char *line)
 	} else if (rem_eq(cmd, "*RST")) {
 		st.recall = 0; st.storing = 0; st.shift = 0;
 		st.autorange = 1; st.filter = 1; st.digits = 7; st.one_shot = 0; st.channel = 0;
+		st.hold = 0; st.scan_mask = 0; st.scan_discard = 0;
+		if (st.fast) { st.fast = 0; apply_integration(); }
 		st.func = F_ACV;                /* force select_func to reset range, zero, dB */
 		select_func(F_DCV);
 		rem_ok();
@@ -299,8 +335,31 @@ static void rem_exec(char *line)
 		if (st.one_shot) filter_reset();
 		rem_ok();
 	} else if (rem_eq(cmd, "CHAN")) {
-		if (arg[0] >= '0' && arg[0] <= '8' && !arg[1]) { st.channel = arg[0] - '0'; filter_reset(); rem_ok(); }
+		if (arg[0] >= '0' && arg[0] <= '8' && !arg[1]) {
+			st.scan_mask = 0; st.channel = arg[0] - '0'; filter_reset(); st.scan_discard = 1; rem_ok();
+		} else rem_err("ARG");
+	} else if (rem_eq(cmd, "SCAN")) {
+		unsigned int m = rem_eq(arg, "0") || rem_eq(arg, "OFF") ? 0 : rem_chanlist(arg);
+		if (!m && !(rem_eq(arg, "0") || rem_eq(arg, "OFF"))) rem_err("ARG");
+		else {
+			st.scan_mask = m;
+			st.channel = 0;
+			if (m) st.channel = scan_next();
+			filter_reset(); st.scan_discard = 1;
+			rem_ok();
+		}
+	} else if (rem_eq(cmd, "SPEED")) {
+		if (rem_eq(arg, "FAST")) { st.fast = 1; apply_integration(); rem_ok(); }
+		else if (rem_eq(arg, "LINE")) { st.fast = 0; apply_integration(); rem_ok(); }
 		else rem_err("ARG");
+	} else if (rem_eq(cmd, "LINE")) {
+		if (rem_eq(arg, "50")) { st.line60 = 0; apply_integration(); rem_ok(); }
+		else if (rem_eq(arg, "60")) { st.line60 = 1; apply_integration(); rem_ok(); }
+		else rem_err("ARG");
+	} else if (rem_eq(cmd, "LOCK")) {
+		if (rem_onoff(arg, &v)) { st.lock = v; rem_ok(); } else rem_err("ARG");
+	} else if (rem_eq(cmd, "HOLD")) {
+		if (rem_onoff(arg, &v)) { st.hold = v; rem_ok(); } else rem_err("ARG");
 	} else if (rem_eq(cmd, "KEY")) {
 		unsigned i;
 		for (i = 0; i < sizeof(rem_keys) / sizeof(rem_keys[0]); i++)
@@ -308,7 +367,7 @@ static void rem_exec(char *line)
 		if (i < sizeof(rem_keys) / sizeof(rem_keys[0])) { rem_ok(); handle_key(rem_keys[i].key); }
 		else rem_err("ARG");
 	} else if (rem_eq(cmd, "LOCAL")) {
-		rem_stream = 0; rem_active = 0; display_clearmode(DISP_REM);
+		rem_stream = 0; rem_active = 0; st.lock = 0; st.hold = 0; display_clearmode(DISP_REM);
 		rem_ok();
 		rem_state_sum = 0xFFFFFFFFu;
 		return;

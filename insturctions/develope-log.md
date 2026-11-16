@@ -440,3 +440,25 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **Test am Gerät:** Wandler per TX-RX-Brücke geprüft (Echo ok). **PIC → Mac funktioniert** (`K199 READY`, `R,…`-Zeilen, ca. 15 Wandlungen/s bei offenem Eingang). **Mac → PIC funktioniert nicht:** Diagnosezeile (`REMOTE_DEBUG 1`) zeigt UART3 richtig konfiguriert (U3STA 0x1610, U3MODE 0x8008, U3RXR 8, IEC1 Bit 31, IPC9 Prio 3), aber RB3 (Pin 22) folgt dem TX des Wandlers nicht: mit internem Pull-down dauerhaft 0, obwohl die Leitung im Ruhezustand High ist; kein anderer Portpin reagiert auf ein Break. Laut `KeithleyUpgrade.kicad_pcb` liegen P8, U3 Pin 22 und U2 Pad 15 auf Netz `/TxD` → auf der Platine ist die Verbindung P8 → Pin 22 offen (Lötstelle Pin 22 oder Leiterbahn). Hardware-Prüfung durch den Nutzer steht aus.
 - **Nach Nachlöten von Pin 22 durch den Nutzer: beide Richtungen funktionieren.** Alle Befehle am Gerät geprüft (`*IDN?`, `STAT?`, `RANG?`, `READ?`, `STREAM`, `FUNC`, `RANG`, `FILT`, `DIG`, `ZERO`, `TRIG ONE` + `*TRG`, `CHAN`, `KEY AUTO`, `*RST`, `LOCAL`, Fehlerantworten). Mac-Programm `k199_app.py` am Gerät geprüft: Anzeige, Verlauf, Statistik, Funktionswechsel per Knopf. Erstes Flashen danach schlug zweimal mit „Failed to get Device ID“ fehl (Kontakt), dritter Versuch ok.
 - RB3 hat jetzt einen internen Pull-up, damit eine offene RX-Leitung im Ruhezustand bleibt.
+
+## 2026-11-16 — Protokoll für das KLAR-Design erweitert
+
+- **Anlass:** Designpaket „KLAR“ (Nutzer) setzt ein originales 199 mit GPIB voraus. Angepasste Vorgabe in `klar/CLAUDE.md` (Design-Dateien unverändert in `klar/design/`): GPIB/PyVISA gestrichen, serielles Protokoll, Modus-Zuordnung, Liste der Abweichungen vom Entwurf.
+- **Firmware (`app_dmm.c`, `remote.c`):**
+  - `SPEED FAST|LINE`: Integration ¼ Netzperiode (5 ms) bzw. eine Netzperiode über `adc_set_integration_period()`. Gemessen bei offenem Eingang ohne Filter: 9,2 Wandlungen/s (LINE), 20,6/s (FAST), 23,9/s (FAST, 60 Hz). Messung ist ratiometrisch (Signal/Referenz gleich lang integriert). Genauigkeit FAST gegen LINE geprüft (siehe unten).
+  - `LINE 50|60`, `LOCK 0|1` (Tasten → „LOCKED“), `HOLD 0|1` (Anzeige steht, Flag 64).
+  - `SCAN <liste>`: Kanäle reihum, erste Wandlung nach Umschalten verworfen, mit Filter nur fertige Mittelwerte. `R`-Zeilen haben jetzt die Kanalnummer als 8. Feld, `S`-Zeile 6 neue Felder.
+  - **Bugfix Zeitstempel:** `portTICK_PERIOD_MS` ist bei 600 Hz Tick ganzzahlig 1 → `<ms>` lief 1,67× zu langsam. Jetzt `ticks * 1000 / configTICK_RATE_HZ`. (Gleiches gilt für alle `ms / portTICK_PERIOD_MS`-Wartezeiten in der App: sie dauern 1,67× länger als geschrieben – unkritisch, nicht geändert.)
+- `tools/k199_app.py`: neue Felder (Kanal, Speed, Lock, Hold, Scan) in Parser, CSV und Simulator.
+- Alle neuen Befehle am Gerät geprüft (inkl. Fehlerfall `SCAN 2,5,9` → `ERR,ARG`).
+- **Prüfung FAST gegen LINE** (Riden an VOLTS HI/LO, fester Bereich, ohne Filter, je 2×40 Werte abwechselnd, Rohwerte):
+
+  | Spannung | Bereich | LINE Mittel / σ | FAST Mittel / σ | Differenz |
+  |---|---|---|---|---|
+  | 0 V (aus) | 300 mV | −55,2 µV / 117 µV | −45,5 µV / 481 µV | +9,7 µV |
+  | 0,1 V | 300 mV | 99,3699 mV / 370 µV | 99,3574 mV / 542 µV | −12,5 µV |
+  | 1 V | 3 V | 1,0004688 V / 455 µV | 1,0004674 V / 670 µV | −1 ppm |
+  | 2,5 V | 3 V | 2,5015851 V / 396 µV | 2,5015934 V / 567 µV | +3 ppm |
+  | 25 V | 30 V | 25,00354 V / 85 mV | 25,00168 V / 134 mV | −75 ppm |
+
+  Alle Differenzen liegen innerhalb der Unsicherheit der Mittelwerte (σ/√80). Die Streuung wird vom Riden dominiert (bei 25 V σ 85 mV), FAST rauscht nur ~1,4× mehr. **Ergebnis: Kalibrierung gilt auch im FAST-Modus, keine eigenen Konstanten nötig.** Die Streuung bei 25 V ist auffällig groß (Riden-Rauschen?) und für die Brummunterdrückung im FAST-Modus (keine ganze Netzperiode) noch nicht gesondert geprüft.

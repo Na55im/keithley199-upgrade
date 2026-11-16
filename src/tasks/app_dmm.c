@@ -10,7 +10,8 @@
  *                  TRIG SETUP (continuous / one-shot), SCAN SETUP (2/4 wire ohms)
  * ZERO: relative reading. SCANNER: steps the scanner channel byte.
  *
- * Remote control over UART3: remote.c. DCV and DCA are calibrated (cal_dcv.h, cal_dca.h). Nothing here reads or writes the
+ * Remote control over UART3: remote.c (also speed, mains frequency, key
+ * lock, display hold and channel scan). DCV and DCA are calibrated (cal_dcv.h, cal_dca.h). Nothing here reads or writes the
  * EEPROM (existing calibration data must never be overwritten).
  *
  * Keys arrive as raw codes KEY_RAW(bus, channel). key_map[] translates them;
@@ -86,11 +87,41 @@ static struct {
 	double last;            /* last displayed value (base units) */
 	int last_valid;
 	int redraw;             /* a message overwrote the reading */
+	int fast;               /* integration 1/4 line cycle instead of one line cycle */
+	int line60;             /* mains 60 Hz (integration 16.67 ms) instead of 50 Hz */
+	int lock;               /* front panel keys locked (remote) */
+	int hold;               /* display frozen (remote) */
+	unsigned int scan_mask; /* bit n = scanner channel n in the scan list, 0 = no scan */
+	int scan_discard;       /* first conversion after a channel switch is thrown away */
 } st = {
 	.func = F_DCV, .ri = 1, .autorange = 1, .filter = 1, .digits = 7,
 };
 
 static adc_range cur_range(void) { return fdef[st.func].ranges[st.ri]; }
+
+/* integration period in us: one line cycle, or a quarter of it (fast) */
+static unsigned int integration_us(void)
+{
+	unsigned int line = st.line60 ? ADC_INTEGRATION_60HZ : ADC_INTEGRATION_50HZ;
+	return st.fast ? line / 4 : line;
+}
+
+static void apply_integration(void)
+{
+	adc_set_integration_period((adc_integration_period)integration_us());
+	filter_reset();
+}
+
+/* next channel of the scan list after the current one (wraps) */
+static int scan_next(void)
+{
+	for (int i = 1; i <= 8; i++) {
+		int c = (st.channel + i - 1) % 8 + 1;
+		if (st.scan_mask & (1u << c))
+			return c;
+	}
+	return 0;
+}
 
 static void set_leds(void)
 {
@@ -347,7 +378,9 @@ static void poll_keys(TickType_t wait)
 	key_id k = display_get_key(wait);
 	while (k != KEY_NONE) {
 		lkey_t lk = map_key(k);
-		if (lk == K_NONE)
+		if (st.lock)
+			show_msg("LOCKED", 600);
+		else if (lk == K_NONE)
 			key_unknown(k);
 		else
 			handle_key(lk);
@@ -418,6 +451,7 @@ static void app_run(void)
 		for (;;) vTaskDelay(1000);
 	}
 	apply_config();
+	apply_integration();
 
 	for (;;) {
 		poll_keys(0);
@@ -456,6 +490,10 @@ static void app_run(void)
 				filter_reset();
 				continue;
 			}
+		}
+		if (st.scan_discard) {              /* scanner relay just switched */
+			st.scan_discard = 0;
+			continue;
 		}
 		if (st.func == F_DCV)
 			v = cal_dcv_apply(cur_range(), v);
@@ -514,7 +552,12 @@ static void app_run(void)
 		remote_reading(v, raw, settled, 0);
 		if (st.shift)
 			display_show("SHIFT");
-		else
+		else if (!st.hold)
 			show_value(v);
+		if (st.scan_mask && (settled || !st.filter)) {   /* scan: on to the next channel */
+			st.channel = scan_next();
+			filter_reset();
+			st.scan_discard = 1;
+		}
 	}
 }

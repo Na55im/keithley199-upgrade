@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>KLAR – Handy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#0B7B55}a:hover{color:#075C40}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #F4F5F2; color: #15181A; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+  <header style="padding: 56px 20px 12px; display: flex; align-items: center; justify-content: space-between">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 12px; color: #5D6560">Arbeitsplatz 1</span>
+      <h1 style="margin: 0; font-size: 22px; font-weight: 700">Keithley 199</h1>
+    </div>
+    <span style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 16px; background: #E3F3EC; color: #0B5E42; font-size: 13px; font-weight: 600"><span style="width: 7px; height: 7px; border-radius: 4px; background: #12B886"></span>Verbunden</span>
+  </header>
+
+  <div style="flex: 1; padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 14px">
+    <section aria-label="Messwert" style="border-radius: 24px; background: #111614; color: #F2F5F3; padding: 22px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; justify-content: space-between; font-size: 13px; color: #A9B5AF"><span style="color: #F2F5F3; font-weight: 600">Gleichspannung</span><span>Auto · 3 V</span></div>
+      <div style="display: flex; align-items: baseline; gap: 8px">
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 56px; font-weight: 500; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums">+1.024381</span>
+        <span style="font-size: 24px; font-weight: 600; color: #A9B5AF">V</span>
+      </div>
+      <svg viewBox="0 0 320 64" width="100%" height="64" role="img" aria-label="Verlauf der letzten Minute" style="display: block">
+        <path d="{{spark}}" stroke="#3DDC97" stroke-width="2" fill="none" stroke-linejoin="round"/>
+      </svg>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px; color: #A9B5AF">
+        <span style="display: flex; flex-direction: column; gap: 2px">Min<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #F2F5F3">1.023618</span></span>
+        <span style="display: flex; flex-direction: column; gap: 2px">Max<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #F2F5F3">1.025104</span></span>
+        <span style="display: flex; flex-direction: column; gap: 2px">σ<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #F2F5F3">2.8e-4</span></span>
+      </div>
+    </section>
+
+    <div role="group" aria-label="Messfunktion" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <button type="button" aria-pressed="true" style="height: 56px; border-radius: 14px; border: none; background: #0B7B55; color: #FFFFFF; font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 700; cursor: pointer">V⎓</button>
+      <button type="button" style="height: 56px; border-radius: 14px; border: 1px solid #E3E5E0; background: #FFFFFF; color: #15181A; font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 700; cursor: pointer">V∼</button>
+      <button type="button" style="height: 56px; border-radius: 14px; border: 1px solid #E3E5E0; background: #FFFFFF; color: #15181A; font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 700; cursor: pointer">Ω</button>
+      <button type="button" style="height: 56px; border-radius: 14px; border: 1px solid #E3E5E0; background: #FFFFFF; color: #15181A; font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 700; cursor: pointer">A⎓</button>
+      <button type="button" style="height: 56px; border-radius: 14px; border: 1px solid #E3E5E0; background: #FFFFFF; color: #15181A; font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 700; cursor: pointer">A∼</button>
+      <button type="button" style="height: 56px; border-radius: 14px; border: 1px solid #E3E5E0; background: #FFFFFF; color: #15181A; font-family: 'JetBrains Mono', monospace; font-size: 17px; font-weight: 700; cursor: pointer">dB</button>
+    </div>
+
+    <section aria-label="Aufnahme" style="border-radius: 20px; background: #FFFFFF; border: 1px solid #E3E5E0; padding: 16px; display: flex; align-items: center; gap: 14px">
+      <span style="width: 44px; height: 44px; border-radius: 22px; background: #FDE7DC; display: flex; align-items: center; justify-content: center"><span style="width: 14px; height: 14px; border-radius: 7px; background: #D9480F"></span></span>
+      <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 15px; font-weight: 600">Aufnahme läuft</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #5D6560">00:14:32 · 4 361 Punkte</span></span>
+      <button type="button" style="height: 44px; padding: 0 16px; border-radius: 12px; border: none; background: #15181A; color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer">Stopp</button>
+    </section>
+
+    <section aria-label="Hinweis" style="border-radius: 20px; background: #FFF4E8; border: 1px solid #F3D3B0; padding: 16px; display: flex; flex-direction: column; gap: 4px; color: #6B2F04">
+      <span style="font-size: 14px; font-weight: 700">Grenzwert-Alarm aktiv</span>
+      <span style="font-size: 13px; line-height: 1.45">Du bekommst eine Mitteilung, sobald der Wert den eingestellten Bereich verlässt.</span>
+    </section>
+  </div>
+
+  <nav aria-label="Navigation" style="height: 84px; box-sizing: border-box; padding: 8px 12px 24px; background: #FFFFFF; border-top: 1px solid #E3E5E0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+    <a href="#" aria-current="page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #0B5E42; font-size: 11px; font-weight: 600; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 13l4-4"/></svg>Messen</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #5D6560; font-size: 11px; font-weight: 500; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-6"/></svg>Analyse</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #5D6560; font-size: 11px; font-weight: 500; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8"/></svg>Logger</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #5D6560; font-size: 11px; font-weight: 500; text-decoration: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/></svg>Mehr</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const rnd = (i) => { const x = Math.sin(i * 12.9898 + 9.1) * 43758.5453; return x - Math.floor(x); };
+    let spark = '';
+    for (let i = 0; i < 70; i++) { spark += (i ? 'L' : 'M') + (i * 320 / 69).toFixed(1) + ' ' + (32 - Math.sin(i / 6) * 13 - (rnd(i) - 0.5) * 14).toFixed(1); }
+    return { spark };
+  }
+}
+</script>
+</body>
+</html>
