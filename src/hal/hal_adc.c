@@ -119,6 +119,21 @@ static QueueHandle_t data_sended = NULL;
 
 
 void (*hal_adc_int_hook)(void) = 0;
+
+/* Number of strobe waits that timed out (OC3 interrupt missing). A missing
+ * interrupt used to block the measurement task forever (display frozen, keys
+ * dead); now the wait gives up after ADC_STROBE_TIMEOUT ticks. */
+volatile unsigned int hal_adc_timeouts = 0;
+#define ADC_STROBE_TIMEOUT  (200 / portTICK_PERIOD_MS)
+
+static void adc_wait_strobe(void)
+{
+    char t;
+    if (xQueueReceive(data_sended, &t, ADC_STROBE_TIMEOUT) != pdTRUE) {
+        T2CONbits.ON = 0;
+        hal_adc_timeouts++;
+    }
+}
 static void send_strobe_and_wait(unsigned int wait_time);
 static void adc_send_mux(char channel, uint32_t mux);
 
@@ -153,8 +168,7 @@ int hal_adc_integration_sequence (uint8_t channel, uint32_t int_mux, uint32_t pa
     /* send the end integration sequence */
     adc_send_mux(channel, pause_mux);
     /* strobe is send automatically from the oc module. just wait for it! */
-    char t;
-    xQueueReceive(data_sended, &t, portMAX_DELAY);
+    adc_wait_strobe();
     /* wait a little bit to receive all count pulses */
     vTaskDelay(KMM_SETTLE_WAIT);
     /* read up pulses */
@@ -207,7 +221,8 @@ static void send_strobe_and_wait(unsigned int wait_time){
     pulsecounter = 0;
     T2CONbits.ON = 1;
     /* wait until strobe is high again */
-    xQueueReceive(data_sended,&t,portMAX_DELAY);
+    (void)t;
+    adc_wait_strobe();
 }
 
 /**@brief send a byte to the adc mux*/

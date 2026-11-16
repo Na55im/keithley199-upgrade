@@ -360,7 +360,9 @@ static adc_channel scanner_channel(void)
 /* Optional scripted run for the camera loop (APP_DEMO in main.c). */
 #if APP_DEMO
 static const struct { int after; lkey_t key; int shift; } demo[] = {
-#if APP_DEMO == 2
+#if APP_DEMO == 3
+	{ 25, K_ZERO,    0 },   /* ZERO, then the script changes the voltage */
+#elif APP_DEMO == 2
 	{ 25, K_DOWN,    0 },   /* manual 300 mV with 1 V in -> OVERFLO */
 	{ 15, K_UP,      0 },   /* 3 V            */
 	{ 15, K_UP,      0 },   /* 30 V           */
@@ -438,6 +440,18 @@ static void app_run(void)
 
 		int flag = 0;
 		double v = adc_read_value(scanner_channel(), &flag);
+		{
+			extern volatile unsigned int hal_adc_timeouts;
+			static unsigned int seen;
+			if (hal_adc_timeouts != seen) {     /* missing ADC strobe IRQ: reading invalid */
+				char b[12] = "ADC TMO  ";
+				seen = hal_adc_timeouts;
+				b[8] = (char)('0' + seen % 10);
+				show_msg(b, 800);
+				filter_reset();
+				continue;
+			}
+		}
 		if (st.func == F_DCV)
 			v = cal_dcv_apply(cur_range(), v);
 

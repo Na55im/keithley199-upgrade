@@ -272,10 +272,29 @@ int main(void)
 	}
 }
 
+/* Fatal traps show where they came from; the display multiplex (IPL3) keeps
+ * running even when this hangs inside the tick ISR (IPL1). */
+static void show_trap(char a, char b, const char *name, unsigned long num)
+{
+	char out[12];
+	int k = 0;
+	out[k++] = a; out[k++] = b;
+	const char *base = name;
+	for (const char *p = name; p && *p; p++)
+		if (*p == '/') base = p + 1;
+	for (int i = 0; i < 2 && base && base[i] && base[i] != '.'; i++)
+		out[k++] = base[i];
+	char d[8]; int n = 0;
+	do { d[n++] = (char)('0' + num % 10); num /= 10; } while (num && n < 5);
+	while (k < 9 - n) out[k++] = ' ';
+	while (n) out[k++] = d[--n];
+	out[k] = 0;
+	display_show(out);
+}
+
 void vAssertCalled(const char *fileName, unsigned long lineNo)
 {
-	(void)fileName;
-	(void)lineNo;
+	show_trap('A', 'S', fileName, lineNo);
 	while (1)
 		;
 }
@@ -285,7 +304,7 @@ void vApplicationIdleHook(void) {}
 void vApplicationStackOverflowHook(void *pxTask, signed char *pcTaskName)
 {
 	(void)pxTask;
-	(void)pcTaskName;
+	show_trap('S', 'O', (const char *)pcTaskName, 0);
 	while (1)
 		;
 }

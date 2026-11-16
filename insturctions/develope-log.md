@@ -402,3 +402,11 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **DCV-Kontrolle gegen 2700 mit der App:** 149,989 mV vs 0,149989 V; 2,001564 vs 2,00159 V (−15 ppm); 24,9996 vs 24,9989 V (+28 ppm). Die zuvor gesehene Abweichung 1,8 mV war ein eingefrorenes Kamerabild (C920 nach USB-Ausfall weg, Kameraserver neu gestartet).
 - **Fix Einzelmessung:** „ONE SHOT“ blieb stehen; jetzt hält die Anzeige den letzten Wert, TRIGGER zeigt „-------“ bis der (bei Filter gefüllte) Wert vorliegt.
 - `tools/cal_vs_ref.py` setzt Bereich/Autorange jetzt im Startzustand von `app_dmm.c`.
+
+## 2026-11-16 — Einfrieren nach ZERO + Spannungsänderung
+
+- **Symptom (Nutzer):** ZERO, Spannung anlegen und verändern → Anzeige bleibt stehen (+1.001261 V bei 0,985 V Eingang), Tasten tot. Multiplex (IPL3) lief weiter → die Mess-Task stand.
+- Mit scharfen Riden-Sprüngen 0,1…5 V (ZERO bei 0 V und bei 1 V, `APP_DEMO 3`) nicht reproduzierbar.
+- **Fix `hal_adc.c`:** Warten auf den OC3-Strobe-Interrupt (`xQueueReceive`) hatte `portMAX_DELAY` → ein verlorener Interrupt (Queue-Länge 1, `xQueueSendFromISR` verwirft bei voller Queue) blockierte für immer. Jetzt `adc_wait_strobe()` mit 200 ms Timeout, Timer2 aus, Zähler `hal_adc_timeouts`. Die App verwirft die Messung und zeigt kurz „ADC TMO n“.
+- **Diagnose `main.c`:** `vAssertCalled` zeigt „AS“ + Datei-Kürzel + Zeile, Stack-Overflow-Hook „SO“ + Taskname.
+- Nutzer-Test danach: friert nicht mehr ein.
