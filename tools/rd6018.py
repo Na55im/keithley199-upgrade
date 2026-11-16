@@ -30,7 +30,7 @@ from serial.tools import list_ports
 # --------------------------------------------------------------------------
 # HARD LIMITS - Keithley 199: 3 A current range, keep well below.
 MAX_VOLTAGE = 60.0   # V  raised from 30 V on explicit user request (2026-11-15); RD6018P max ~59.62 V
-MAX_CURRENT = 0.5    # A
+MAX_CURRENT = 3.0    # A  raised from 0.5 A on explicit user request (2026-11-16): 199 3 A range calibration
 # --------------------------------------------------------------------------
 
 KNOWN_MODELS = {60185: "RD6018P", 60181: "RD6018"}

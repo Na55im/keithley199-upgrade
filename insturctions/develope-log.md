@@ -410,3 +410,21 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **Fix `hal_adc.c`:** Warten auf den OC3-Strobe-Interrupt (`xQueueReceive`) hatte `portMAX_DELAY` → ein verlorener Interrupt (Queue-Länge 1, `xQueueSendFromISR` verwirft bei voller Queue) blockierte für immer. Jetzt `adc_wait_strobe()` mit 200 ms Timeout, Timer2 aus, Zähler `hal_adc_timeouts`. Die App verwirft die Messung und zeigt kurz „ADC TMO n“.
 - **Diagnose `main.c`:** `vAssertCalled` zeigt „AS“ + Datei-Kürzel + Zeile, Stack-Overflow-Hook „SO“ + Taskname.
 - Nutzer-Test danach: friert nicht mehr ein.
+
+## 2026-11-16 — DCA-Kalibrierung gegen Keithley 2700 (`src/tasks/cal_dca.h`)
+
+- **Aufbau (Nutzer):** RD6018P → 2700 AMPS → 199 AMPS → zurück, in Reihe. Kreiswiderstand (beide Shunts + Leitungen) ≈ 16 Ω (2700 20-mA-Bereich), ≈ 11 Ω (100 mA), ≈ 0,82 Ω (199 3 A / 2700 1 A).
+- **Neu `tools/cal_amps.py`:** Punkte als CC (`12` = 12 mA) oder CV (`v0.16` = 0,16 V, Strom = U/R_Kreis, Strombegrenzung nur als Schutz). Abbruch bei offenem Kreis/Schutz. `cal_vs_ref.py` importierbar gemacht (`grab()`, `flash()`), `grab()` wartet bis 30 s auf ein frisches Kamerabild.
+- **CC bei kleinen Strömen unbrauchbar:** die Riden-Stromregelung schwankt, 199 und 2700 mitteln über verschiedene Zeitfenster → Verhältnis streute 0,983…0,996. Im CV-Betrieb scharfe, stabile Anzeigen. Ab ~50 mA ist CC ausreichend stabil.
+- **30 mA** (11 Punkte 0…29 mA, CV; 25…29 mA nach CC-Vorlauf, damit das 2700 im 100-mA-Bereich bleibt): gain **0,9852014**, offset **−17,28 µA**, Restfehler ≤ 2,5 µA (Sprung ~4 µA zwischen 2700-Bereichen 20/100 mA).
+- **3 A** (7 Punkte 0…0,48 A, CC; Riden-Grenze 0,5 A): gain **0,9747351**, offset **−975,96 µA**, Restfehler ≤ 150 µA (leichte Krümmung, vermutlich Shunt-Erwärmung; 2700-Genauigkeit 1-A-Bereich ~0,1 %). Über 0,48 A extrapoliert.
+- **Kontrolle (Autorange), 199 vs 2700:** 0 A −0,0008 vs −0,00033 mA; 7,6504 vs 7,65030 mA; 12,7889 vs 12,78898 mA; 19,192x vs 19,19291 mA; 0,150219 vs 0,150270 A (−340 ppm); 0,350427 vs 0,350404 A (+66 ppm).
+- **Kameraserver:** liefert keine alten Bilder mehr (503 wenn > 2 s alt) und öffnet die Kamera neu, wenn keine Bilder kommen. Nach USB-Ausfall trotzdem Server-Neustart nötig.
+
+## 2026-11-16 — 3-A-Bereich bis 2,8 A
+
+- **Riden-Strombegrenzung** in `tools/rd6018.py` auf ausdrücklichen Wunsch des Nutzers von 0,5 A auf **3 A** angehoben (Ende der 3-A-Bereiche von 199 und 2700). `cal_amps.py`: Spannungsgrenze 3 V, OVP 4 V, OCP 3,1 A.
+- **Lauf** (CC, erst 1 A als Probe, dann 2,8 A abwärts bis 0): Kreis ≈ 0,82 Ω (2,30 V bei 2,8 A). Restfehler ≤ 0,41 mA ohne erkennbare Krümmung (≤ 0,02 % vom Messwert; 2700 im 3-A-Bereich nur 10 µA Auflösung). Der Nullpunkt verschob sich nach den hohen Strömen um +83 µA (Erwärmung).
+- Neu (verkettet mit dem Fit bis 0,48 A): gain **0,9753406**, offset **−1002,95 µA**.
+- **Kontrolle (Autorange):** 0,299946 vs 0,300048 A (−340 ppm, wie bei 150 mA: Bereichsunterschied 1 A/3 A des 2700); 1,500026 vs 1,50006 A (−23 ppm); 2,600273 vs 2,60025 A (+9 ppm); 0 A zurück im 30-mA-Bereich ≈ −1 µA.
+- `cal_vs_ref.grab()` startet den Kameraserver selbst neu, wenn 6 Versuche ohne frisches Bild bleiben (Kamera fällt beim Umstecken des PICkit mit aus, gemeinsamer Hub).

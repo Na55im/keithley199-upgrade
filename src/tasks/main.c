@@ -19,6 +19,7 @@
 #define AUTORANGE_DOWN  0.9           /* go down below 90 % of the lower range's full scale */
 
 #include "cal_dcv.h"
+#include "cal_dca.h"
 
 /* Front panel filter as in the original 199 (manual 2.6.3): running average
  * of the last FILTER_N conversions; a reading outside the window around the

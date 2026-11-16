@@ -20,12 +20,9 @@ from rd6018 import RD6018
 PROJ = os.path.dirname(HERE)
 IPE = '/Applications/microchip/mplabx/v6.05/mplab_platform/mplab_ipe/bin/ipecmd.sh'
 CAM = 'http://127.0.0.1:8199/snap.jpg?avg=3'
-CROP_2700 = (370, 455, 530, 870)    # y0, y1, x0, x1 in the full camera frame
-CROP_199 = (765, 880, 470, 1070)
-
-name, rng, ovp, settle = sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4])
-pts = [float(a) for a in sys.argv[5:]]
-
+CAM_SERVER = '/Users/nagre/Downloads/keithley_199/tools/cam_server.command'   # runs the venv there
+CROP_2700 = (345, 445, 560, 960)    # y0, y1, x0, x1 in the full camera frame
+CROP_199 = (735, 865, 520, 1150)
 
 VOLT_RANGES = ['ADC_RANGE_300m', 'ADC_RANGE_3', 'ADC_RANGE_30', 'ADC_RANGE_300']
 
@@ -34,17 +31,22 @@ def set_firmware(autorange, rng):
     """Set the DCV power-on state of the app (src/tasks/app_dmm.c, struct st)."""
     p = f'{PROJ}/src/tasks/app_dmm.c'
     s = open(p).read()
-    s, a = re.subn(r'(\.func = F_DCV, \.ri = )\d(, \.autorange = )\d',
-                   rf'\g<1>{VOLT_RANGES.index(rng)}\g<2>{autorange}', s)
+    s, a = re.subn(r'\.func = F_\w+, \.ri = \d, \.autorange = \d',
+                   f'.func = F_DCV, .ri = {VOLT_RANGES.index(rng)}, .autorange = {autorange}', s)
     assert a == 1
     open(p, 'w').write(s)
     os.utime(f'{PROJ}/src/tasks/main.c')   # app_dmm.c is #included from main.c
+    flash()
+
+
+def flash():
+    """Build the firmware and flash it (with retries for the flaky PICkit contact)."""
     r = subprocess.run(['make', '-f', 'nbproject/Makefile-default.mk', 'CONF=default', 'build'],
                        cwd=PROJ, capture_output=True, text=True)
     if r.returncode:
         sys.exit('BUILD FAILED\n' + r.stdout[-1500:])
     hexf = f'{PROJ}/dist/default/production/keithley_199-master.production.hex'
-    for _ in range(4):
+    for _ in range(6):
         r = subprocess.run(['perl', '-e', 'alarm 240; exec @ARGV', 'sh', IPE, '-P32MX350F256L', '-TPPK3',
                             f'-F{hexf}', '-M', '-Y', '-OL'], stdin=subprocess.DEVNULL, capture_output=True, text=True)
         if 'Verify Succeeded' in r.stdout:
@@ -53,7 +55,19 @@ def set_firmware(autorange, rng):
 
 
 def grab():
-    b = urllib.request.urlopen(CAM, timeout=10).read()
+    for attempt in range(30):          # camera may be re-enumerating (shared USB hub)
+        try:
+            b = urllib.request.urlopen(CAM, timeout=10).read()
+            break
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            if attempt == 29:
+                raise
+            if attempt == 5:           # server keeps the dead capture: restart it (in Terminal.app for camera permission)
+                print('camera: no frames, restarting cam server', flush=True)
+                subprocess.run(['pkill', '-f', 'cam_server.py'])
+                time.sleep(1)
+                subprocess.run(['open', '-a', 'Terminal', CAM_SERVER])
+            time.sleep(2)
     im = cv2.imdecode(np.frombuffer(b, np.uint8), 1)
     a = im[CROP_2700[0]:CROP_2700[1], CROP_2700[2]:CROP_2700[3]]
     k = cv2.resize(im[CROP_199[0]:CROP_199[1], CROP_199[2]:CROP_199[3]], None, fx=0.55, fy=0.55)
@@ -64,6 +78,8 @@ def grab():
 
 
 if __name__ == '__main__':
+    name, rng, ovp, settle = sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4])
+    pts = [float(a) for a in sys.argv[5:]]
     if rng != 'none':
         set_firmware(0, rng)
         print('flashed', rng, flush=True)

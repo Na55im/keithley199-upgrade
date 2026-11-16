@@ -22,15 +22,38 @@ latest = []          # ring of recent frames
 MAX_KEEP = 30
 
 
-def grabber(cap):
+last_ok = [0.0]      # time of the newest frame
+STALE_S = 2.0        # frames older than this are never served
+REOPEN_S = 4.0       # no frame for this long -> reopen the camera
+
+
+def open_cam(args):
+    cap = cv2.VideoCapture(args.cam, cv2.CAP_AVFOUNDATION)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
+    return cap
+
+
+def grabber(cap, args):
+    """Read frames forever; reopen the camera when it stops delivering
+    (e.g. after the USB hub dropped out) instead of serving old frames."""
     while True:
         ok, f = cap.read()
         if ok:
             with lock:
                 latest.append(f)
                 del latest[:-MAX_KEEP]
+                last_ok[0] = time.time()
         else:
             time.sleep(0.05)
+            if time.time() - last_ok[0] > REOPEN_S:
+                print("no frames - reopening camera", flush=True)
+                with lock:
+                    latest.clear()
+                cap.release()
+                time.sleep(1)
+                cap = open_cam(args)
+                last_ok[0] = time.time()   # give the new capture time to start
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -43,9 +66,10 @@ class Handler(BaseHTTPRequestHandler):
         avg = max(1, min(avg, MAX_KEEP))
         time.sleep(avg / 30)  # make sure frames are fresh, not from before the request
         with lock:
-            frames = [f.astype(np.float32) for f in latest[-avg:]]
+            fresh = time.time() - last_ok[0] < STALE_S
+            frames = [f.astype(np.float32) for f in latest[-avg:]] if fresh else []
         if not frames:
-            self.send_error(503, "no frame yet")
+            self.send_error(503, "no fresh frame")
             return
         img = np.mean(frames, axis=0).astype(np.uint8)
         ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
@@ -77,7 +101,7 @@ def main():
         raise SystemExit("camera not available - allow camera for Terminal in System Settings")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.height)
-    threading.Thread(target=grabber, args=(cap,), daemon=True).start()
+    threading.Thread(target=grabber, args=(cap, args), daemon=True).start()
     print(f"camera {args.cam} open, serving http://127.0.0.1:{args.port}/snap.jpg  (Ctrl+C to stop)")
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 

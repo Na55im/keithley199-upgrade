@@ -454,6 +454,8 @@ static void app_run(void)
 		}
 		if (st.func == F_DCV)
 			v = cal_dcv_apply(cur_range(), v);
+		else if (st.func == F_DCA)
+			v = cal_dca_apply(cur_range(), v);
 
 		if (st.autorange) {
 			int ri = st.ri, n = fdef[st.func].nranges;
