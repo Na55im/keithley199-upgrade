@@ -285,4 +285,5 @@ hw.kicad/.history/
 # Python tooling (local)
 tools/.venv/
 tools/captures/
+tools/logs/
 tools/__pycache__/

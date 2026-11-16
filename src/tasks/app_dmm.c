@@ -10,7 +10,7 @@
  *                  TRIG SETUP (continuous / one-shot), SCAN SETUP (2/4 wire ohms)
  * ZERO: relative reading. SCANNER: steps the scanner channel byte.
  *
- * Only DCV is calibrated (cal_dcv.h). Nothing here reads or writes the
+ * Remote control over UART3: remote.c. DCV and DCA are calibrated (cal_dcv.h, cal_dca.h). Nothing here reads or writes the
  * EEPROM (existing calibration data must never be overwritten).
  *
  * Keys arrive as raw codes KEY_RAW(bus, channel). key_map[] translates them;
@@ -339,8 +339,11 @@ static void handle_key(lkey_t k)
 	}
 }
 
+#include "remote.c"
+
 static void poll_keys(TickType_t wait)
 {
+	remote_poll();
 	key_id k = display_get_key(wait);
 	while (k != KEY_NONE) {
 		lkey_t lk = map_key(k);
@@ -350,6 +353,7 @@ static void poll_keys(TickType_t wait)
 			handle_key(lk);
 		k = display_get_key(0);
 	}
+	remote_state_check();
 }
 
 static adc_channel scanner_channel(void)
@@ -407,6 +411,7 @@ static void app_run(void)
 {
 	char buf[32];
 	(void)buf;
+	remote_init();
 	display_show("ADC INIT");
 	if (adc_init(ADC_INTEGRATION_50HZ, fdef[st.func].input, cur_range()) != ADC_ERROR_NONE) {
 		display_show("ADC ERR");
@@ -477,17 +482,21 @@ static void app_run(void)
 			st.last_valid = 0;
 			display_clearmode(DISP_FLTR);
 			display_show(flag == ADC_UNDERFLOW ? "-OVERFLO" : " OVERFLO");
+			remote_reading(0, 0, 0, flag == ADC_UNDERFLOW ? -1 : 1);
 			continue;
 		}
 
+		double raw = v;
+		int settled = 1;
 		if (st.filter) {
-			int settled;
 			v = filter_apply(v, adc_get_max(cur_range()), &settled);
 			st.blink = !st.blink;
 			if (settled || st.blink) display_setmode(DISP_FLTR);
 			else display_clearmode(DISP_FLTR);
-			if (st.one_shot && !settled)
-				continue;               /* one-shot: wait until the filter is full */
+			if (st.one_shot && !settled) {      /* one-shot: wait until the filter is full */
+				remote_reading(v, raw, 0, 0);
+				continue;
+			}
 		}
 		st.trig_pending = 0;
 
@@ -502,6 +511,7 @@ static void app_run(void)
 			st.blink ? display_setmode(DISP_STO) : display_clearmode(DISP_STO);
 			if (!st.storing) set_leds();
 		}
+		remote_reading(v, raw, settled, 0);
 		if (st.shift)
 			display_show("SHIFT");
 		else

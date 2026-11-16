@@ -28,8 +28,8 @@
 #include <HardwareProfile.h>
 #include <assert.h>
 
-// Define UART constants
-#define HAL_UART_NUMBER_OF_PORTS 2
+/* HAL_UART_NUMBER_OF_PORTS comes from the enum in hal_uart.h (5). It was
+ * redefined to 2 here, which made UART3 (index 2) write past the arrays. */
 
 /* space to store function callbacks */
 hal_uart_on_buffer_sent_callback on_data_sent[HAL_UART_NUMBER_OF_PORTS];
@@ -275,8 +275,20 @@ void hal_uart2_isr_handler(){
     hal_uart_interrupt_handler(HAL_UART_PORT_2);
 }
 
+/* UART3 (remote control, src/tasks/remote.c): receive only, SFRs directly.
+ * The legacy plib UART/INT functions used by hal_uart_interrupt_handler() are
+ * not linked into this build (address 0). */
 void hal_uart3_isr_handler(){
-    hal_uart_interrupt_handler(HAL_UART_PORT_3);
+    if (U3STAbits.OERR)
+        U3STACLR = _U3STA_OERR_MASK;
+    while (U3STAbits.URXDA) {
+        unsigned int err = U3STA & (_U3STA_FERR_MASK | _U3STA_PERR_MASK);
+        uint8_t c = (uint8_t)U3RXREG;
+        if (on_data_received[HAL_UART_PORT_3] != NULL)
+            on_data_received[HAL_UART_PORT_3](HAL_UART_PORT_3, c,
+                err ? HAL_UART_ERR_FRAMMING : HAL_UART_ERR_NONE);
+    }
+    IFS1CLR = _IFS1_U3RXIF_MASK | _IFS1_U3EIF_MASK;
 }
 
 void hal_uart4_isr_handler(){

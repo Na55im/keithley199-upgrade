@@ -66,9 +66,21 @@ def find_port():
     ports = [p.device for p in list_ports.comports()
              if p.vid == CH340_VID and p.pid == CH340_PID]
     ports = [p for p in ports if "/cu." in p] or ports
-    if len(ports) != 1:
-        raise RuntimeError(f"expected exactly one CH340 port, found {ports}; use --port")
-    return ports[0]
+    if len(ports) == 1:
+        return ports[0]
+    # several CH340 adapters (e.g. the USB-TTL converter of the 199): ask each for the model id
+    for p in ports:
+        try:
+            dev = minimalmodbus.Instrument(p, 1)
+            dev.serial.baudrate = 115200
+            dev.serial.timeout = 0.5
+            model = dev.read_register(REG_MODEL)
+            dev.serial.close()
+            if model in KNOWN_MODELS:
+                return p
+        except (minimalmodbus.ModbusException, OSError):
+            pass
+    raise RuntimeError(f"no RD6018 found on the CH340 ports {ports}; use --port")
 
 
 class RD6018:
