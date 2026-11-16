@@ -1,9 +1,11 @@
 /*
- * Measurement bring-up: FreeRTOS + display_kyb + ADC (DCV, 3 V range).
+ * Keithley 199 firmware: FreeRTOS + display_kyb + ADC, DMM application in
+ * app_dmm.c (included below).
  *
  * The Core Timer ISR (CT_wrapper, vector 0) multiplexes the display,
  * OC3 (vector 14) generates the ADC strobe / integration timing.
- * Settings, EEPROM, keys and SCPI (tskmgr.c) are not started yet.
+ * tskmgr.c (settings/EEPROM/SCPI) is deliberately not started: the existing
+ * calibration data in the EEPROM must never be overwritten.
  */
 #include <FreeRTOS.h>
 #include <task.h>
@@ -14,12 +16,8 @@
 #include <string.h>
 #include <xc.h>
 
-#define MEAS_RANGE      ADC_RANGE_3   /* start range */
-#define AUTORANGE       1
 #define AUTORANGE_DOWN  0.9           /* go down below 90 % of the lower range's full scale */
 
-static const adc_range dcv_ranges[] = { ADC_RANGE_300m, ADC_RANGE_3, ADC_RANGE_30, ADC_RANGE_300 };
-#define DCV_RANGE_COUNT ((int)(sizeof(dcv_ranges) / sizeof(dcv_ranges[0])))
 #include "cal_dcv.h"
 
 /* Front panel filter as in the original 199 (manual 2.6.3): running average
@@ -53,40 +51,6 @@ static void show_count(char tag, int count)
 	display_clear();
 	display_puts(out);
 	vTaskDelay((1500 / portTICK_PERIOD_MS));
-}
-
-/* Format value right-aligned with sign, e.g. "  +1.00012" (the '.' takes no
- * digit position). No printf: keeps stack use small in the task. */
-static void format_value(char *out, double v, adc_range range)
-{
-	char digits[20];
-	int n = 0;
-	int decimals = cal_dcv_decimals(range);
-	const char *unit = cal_dcv_unit(range);
-	long long scaled = llround(fabs(v) * cal_dcv_scale(range) * pow(10.0, decimals));
-	int neg = (v < 0) && scaled != 0;
-
-	for (int i = 0; i < decimals; i++) {
-		digits[n++] = (char)('0' + scaled % 10);
-		scaled /= 10;
-	}
-	if (decimals)
-		digits[n++] = '.';
-	do {
-		digits[n++] = (char)('0' + scaled % 10);
-		scaled /= 10;
-	} while (scaled && n < 18);
-	digits[n++] = neg ? '-' : '+';
-
-	int visible = n - (decimals ? 1 : 0) + (int)strlen(unit);   /* '.' takes no position */
-	int k = 0;
-	for (int i = visible; i < DISPLAY_DIGITS; i++)
-		out[k++] = ' ';
-	while (n > 0)
-		out[k++] = digits[--n];
-	for (const char *u = unit; *u; u++)
-		out[k++] = *u;
-	out[k] = 0;
 }
 
 /* ---- Software logic analyser on ACOUNT (RE3) ---------------------------
@@ -243,11 +207,12 @@ static double filter_apply(double v, double full_scale, int *settled)
 	return sum / filt_count;
 }
 
+#define APP_DEMO 0                  /* 1 = scripted key sequence for the camera loop */
+#include "app_dmm.c"
+
 static void measure_task(void *pvParameters)
 {
 	(void)pvParameters;
-	char buf[32];
-
 	display_kyb_init();
 
 	/* Bring-up: show active oscillator (OSCCON.COSC) and whether the
@@ -288,95 +253,14 @@ static void measure_task(void *pvParameters)
 	}
 #endif
 
-	display_clear();
-	display_puts("ADC INIT");
-
-	if (adc_init(ADC_INTEGRATION_50HZ, ADC_INPUT_VOLTAGE_DC, MEAS_RANGE)
-	    != ADC_ERROR_NONE) {
-		display_clear();
-		display_puts("ADC ERR");
-		for (;;)
-			vTaskDelay(1000);
-	}
-
-#if MEAS_DEBUG_COUNTS
-	/* LA hook samples ACOUNT for ~10 ms with interrupts off -> freezes the
-	 * display multiplex (visible flicker). Only for diagnostics. */
-	hal_adc_int_hook = la_int_hook;
-#endif
-	display_setmode(DISP_VOLTS);
-	int blink = 0;
-	int ri = 0;
-	while (dcv_ranges[ri] != MEAS_RANGE)
-		ri++;
-	adc_range range = dcv_ranges[ri];
-	if (AUTORANGE)
-		display_setmode(DISP_AUTO);
-	for (;;) {
-		int flag = 0;
-		la_armed = 1;
-		double v = cal_dcv_apply(range, adc_read_value(ADC_CHANNEL_0, &flag));
-#if AUTORANGE
-		{
-			int nri = ri;
-			if (flag && ri < DCV_RANGE_COUNT - 1)
-				nri = ri + 1;                       /* over/underflow: up */
-			else if (!flag && ri > 0 &&
-			         fabs(v) < AUTORANGE_DOWN * adc_get_max(dcv_ranges[ri - 1]))
-				nri = ri - 1;                       /* fits the lower range: down */
-			if (nri != ri) {
-				ri = nri;
-				range = dcv_ranges[ri];
-				adc_set_range(range);
-				filter_reset();
-				/* discard the first conversion after switching (relays, settling) */
-				(void)adc_read_value(ADC_CHANNEL_0, &flag);
-				continue;
-			}
-		}
-#endif
-#if FILTER_ENABLED
-		if (flag) {
-			filter_reset();
-			display_clearmode(DISP_FLTR);
-		} else {
-			int settled;
-			v = filter_apply(v, adc_get_max(range), &settled);
-			if (settled)
-				display_setmode(DISP_FLTR);
-			else
-				blink = !blink, blink ? display_setmode(DISP_FLTR) : display_clearmode(DISP_FLTR);
-		}
-#endif
-
-		if (flag == ADC_OVERFLOW)
-			display_show(" OVERFLO");
-		else if (flag == ADC_UNDERFLOW)
-			display_show("-OVERFLO");
-		else if (isnan(v) || isinf(v))
-			display_show("  NAN");
-		else {
-			format_value(buf, v, range);
-			display_show(buf);
-		}
-#if MEAS_DEBUG_COUNTS
-		vTaskDelay((1500 / portTICK_PERIOD_MS));
-		int c[4];
-		for (int i = 0; i < 4; i++)
-			c[i] = adc_last_counts[i];
-		show_count('S', c[0] - c[1]);   /* signal - signal zero */
-		show_count('R', c[3] - c[2]);   /* reference - reference zero */
-		show_count('A', c[0]);
-		show_la();
-#endif
-	}
+	app_run();
 }
 
 int main(void)
 {
 	hal_sys_init();
 
-	if (xTaskCreate(measure_task, "MEAS", (unsigned short)1024, NULL,
+	if (xTaskCreate(measure_task, "MEAS", (unsigned short)2048, NULL,
 			(tskIDLE_PRIORITY + 2), NULL) != pdPASS) {
 		while (1) {
 		}

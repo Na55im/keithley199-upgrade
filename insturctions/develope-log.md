@@ -391,3 +391,14 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - Das RD6018P erreicht mit 60,6 V Eingangsspannung nur ~56,9 V (bei 59,5 V Soll → CC-Meldung, Lauf sicher abgebrochen). Oberster Punkt daher 56,5 V. `cal_vs_ref.py` speichert die Bilder jetzt auch nach einem Abbruch.
 - **11 Punkte 0…56,5 V:** Restfehler ≤ 0,33 mV (Anzeigeauflösung 0,1 mV). Neu: gain **1,0746032**, offset **−64,2 µV** (vorher 1,0746249 / −385,6 µV aus 0…30 V).
 - **Kontrolle (Autorange):** 32,9989 vs 32,9985 V (+12 ppm), 44,9970 vs 44,9967 V (+7 ppm), 55,9928 vs 55,9934 V (−11 ppm).
+
+## 2026-11-16 — Alle Frontpanel-Funktionen des 199 (`src/tasks/app_dmm.c`)
+
+- **Neue App** `app_dmm.c` (aus `main.c` per `#include`, damit das Makefile unverändert bleibt; nach Änderungen `touch src/tasks/main.c`). Kein EEPROM-/Settings-Zugriff (geprüft mit `xc32-nm`).
+- **Funktionen:** DCV, ACV, DCA, ACA, Ω 2-Draht, Ω 4-Draht. Bereiche: V 300 mV…300 V, A 30 mA/3 A, Ω 300 Ω…3 MΩ. Autorange je Funktion, manuell mit ▲/▼. Nur DCV ist kalibriert (`cal_dcv.h`), alles andere zeigt Rohwerte.
+- **Tasten** (Tastatur liefert jetzt Rohcodes `KEY_RAW(bus,ch)`, vom Nutzer per Anzeige „KEY bb.c“ ermittelt): VOLTS 6.1, AMPS 6.2, AUTO 6.3, OHMS 10.1, LOCAL 10.2, ▲ 10.3, AC 8.1, TRIGGER 8.2, ▼ 8.3, ZERO 2.3, SCANNER 4.1, NEXT/SHIFT 4.2.
+- **SHIFT-Funktionen:** STORE (100 Werte RAM), RECALL (▲/▼ blättern), FILTER ein/aus, dB (re 1 V bzw. 1 mA, nur AC), RESOLN 6½→4½→5½, DMM SETUP = LED-Test, TRIG SETUP = Einzel/Dauer, SCAN SETUP = 2/4-Draht. SCANNER schaltet Kanal 0…8.
+- **Kamera-Tests mit `APP_DEMO` 1/2** (skriptete Tastenfolge, Riden 1 V): ZERO (+0,000003 V), RESOLN 1.0011 / 1.00110 / 1.001095 V, ACV ~3,3 mV bei DC-Eingang, dB −49,596 = 20·log(3,31 mV), Ω 2W/4W, DCA/ACA, STORE/RECALL, ▼ → OVERFLO im 300-mV-Bereich, ▲, AUTO, FILTER aus/ein, Kanal 1…8→0, LED-Test, Autorange runter nach Riden-Aus. Ω an den abgeschalteten Riden-Klemmen ≈ 2 Ω (ohne bekannten Widerstand nicht bewertbar).
+- **DCV-Kontrolle gegen 2700 mit der App:** 149,989 mV vs 0,149989 V; 2,001564 vs 2,00159 V (−15 ppm); 24,9996 vs 24,9989 V (+28 ppm). Die zuvor gesehene Abweichung 1,8 mV war ein eingefrorenes Kamerabild (C920 nach USB-Ausfall weg, Kameraserver neu gestartet).
+- **Fix Einzelmessung:** „ONE SHOT“ blieb stehen; jetzt hält die Anzeige den letzten Wert, TRIGGER zeigt „-------“ bis der (bei Filter gefüllte) Wert vorliegt.
+- `tools/cal_vs_ref.py` setzt Bereich/Autorange jetzt im Startzustand von `app_dmm.c`.

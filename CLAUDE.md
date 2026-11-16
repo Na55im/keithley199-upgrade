@@ -66,4 +66,4 @@ Fortschritt steht in `insturctions/develope-log.md` (neueste Einträge unten) �
 ## Arbeitsweise
 - Kleine, überprüfbare Schritte; nach jeder Änderung Build ausführen und Ergebnis ins Log schreiben.
 - Keine Dateien in `build/`, `dist/`, `nbproject/private/` von Hand ändern.
-- Stand 2026-11-15: DCV misst in allen vier Bereichen; kalibriert gegen Riden (`cal_dcv.h`), Kontrolle ≤ ±1,1 mV. Bereich per `MEAS_RANGE` in `main.c`. Offen: Kalibrierung, andere Bereiche/Funktionen, `tskmgr` (Tasten/Settings/EEPROM), SCPI.
+- Stand 2026-11-16: Alle Frontpanel-Funktionen in `src/tasks/app_dmm.c` (aus `main.c` inkludiert; nach Änderung `touch src/tasks/main.c`). Nur DCV kalibriert (`cal_dcv.h`). Tasten als Rohcodes `KEY_RAW(bus,ch)` in `key_map[]`. Offen: Kalibrierung ACV/A/Ω, SCPI, `tskmgr` (EEPROM!).

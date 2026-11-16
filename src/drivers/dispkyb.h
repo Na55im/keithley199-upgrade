@@ -24,6 +24,7 @@
 #define	DISPKYB_H
 
 #include <stdbool.h>
+#include <FreeRTOS.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -80,6 +81,11 @@ extern "C" {
     /* highlight a digit in the display. 0 = no digit is highlighted*/
     void display_highlight(int digit);
     key_id display_wait_for_key();
+    key_id display_get_key(TickType_t timeout);
+    /* raw key code: digit-select bus (0..10) and keyboard channel (1..3) */
+    #define KEY_RAW(bus, ch)   (100 + (bus) * 4 + (ch))
+    #define KEY_RAW_BUS(k)     (((int)(k) - 100) / 4)
+    #define KEY_RAW_CH(k)      (((int)(k) - 100) % 4)
     void hal_disp_adci_toggle();
 
 #ifdef	__cplusplus

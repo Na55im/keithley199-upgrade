@@ -2,7 +2,8 @@
 """Calibration run of the K199 against a reference DMM (Keithley 2700) read by camera.
 
 The RD6018P drives both meters in parallel. For one 199 range the firmware is
-built with AUTORANGE 0 / MEAS_RANGE <range>, flashed, then the Riden steps
+built with autorange off and that DCV range as power-on state (app_dmm.c),
+flashed, then the Riden steps
 through the points; after SETTLE seconds both displays are photographed.
 Output: captures/<name>.jpg (tile: 2700 | 199 per point) and <name>.csv
 (Riden readback). The numbers are read from the tile and fitted separately.
@@ -19,20 +20,25 @@ from rd6018 import RD6018
 PROJ = os.path.dirname(HERE)
 IPE = '/Applications/microchip/mplabx/v6.05/mplab_platform/mplab_ipe/bin/ipecmd.sh'
 CAM = 'http://127.0.0.1:8199/snap.jpg?avg=3'
-CROP_2700 = (395, 465, 560, 880)    # y0, y1, x0, x1 in the full camera frame
-CROP_199 = (765, 885, 410, 1050)
+CROP_2700 = (370, 455, 530, 870)    # y0, y1, x0, x1 in the full camera frame
+CROP_199 = (765, 880, 470, 1070)
 
 name, rng, ovp, settle = sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4])
 pts = [float(a) for a in sys.argv[5:]]
 
 
+VOLT_RANGES = ['ADC_RANGE_300m', 'ADC_RANGE_3', 'ADC_RANGE_30', 'ADC_RANGE_300']
+
+
 def set_firmware(autorange, rng):
-    p = f'{PROJ}/src/tasks/main.c'
+    """Set the DCV power-on state of the app (src/tasks/app_dmm.c, struct st)."""
+    p = f'{PROJ}/src/tasks/app_dmm.c'
     s = open(p).read()
-    s, a = re.subn(r'(#define AUTORANGE\s+)\d', rf'\g<1>{autorange}', s)
-    s, b = re.subn(r'(#define MEAS_RANGE\s+)ADC_RANGE_\w+', rf'\g<1>{rng}', s)
-    assert a == 1 and b == 1
+    s, a = re.subn(r'(\.func = F_DCV, \.ri = )\d(, \.autorange = )\d',
+                   rf'\g<1>{VOLT_RANGES.index(rng)}\g<2>{autorange}', s)
+    assert a == 1
     open(p, 'w').write(s)
+    os.utime(f'{PROJ}/src/tasks/main.c')   # app_dmm.c is #included from main.c
     r = subprocess.run(['make', '-f', 'nbproject/Makefile-default.mk', 'CONF=default', 'build'],
                        cwd=PROJ, capture_output=True, text=True)
     if r.returncode:

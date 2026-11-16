@@ -10,7 +10,7 @@
 #include "hal_spi.h"
 #include "dispkyb.h"
 
-#define EVENT_QUEUE_LENGTH 1
+#define EVENT_QUEUE_LENGTH 8
 QueueHandle_t event_queue;
 
 #define KYB_REPETITION_PERIOD_MS 60
@@ -19,6 +19,16 @@ key_id display_wait_for_key()
 {
     key_id key;
     xQueueReceive(event_queue, &key, portMAX_DELAY);
+    return key;
+}
+
+/* Next key event (raw code, see KEY_RAW) or KEY_NONE after timeout ticks.
+ * Events are only sent on changes, so a release shows up as KEY_NONE. */
+key_id display_get_key(TickType_t timeout)
+{
+    key_id key;
+    if (xQueueReceive(event_queue, &key, timeout) != pdTRUE)
+        return KEY_NONE;
     return key;
 }
 
@@ -229,31 +239,14 @@ static bool __attribute__((nomips16)) hal_disp_scan_step(void)
 
     display_set(screen[pos], (int)pos);
 
-    /* Keyboard scan for the currently selected digit (hardware bus index) */
-    if (hal_io_keyboard_get_channel() == 1) {
-        switch (bus) {
-            case 1: frame_key = KEY_1; break;
-            case 2: frame_key = KEY_3; break;
-            case 3: frame_key = KEY_0; break;
-            case 4: frame_key = KEY_8; break;
-        }
-    }
-    if (hal_io_keyboard_get_channel() == 2) {
-        switch (bus) {
-            case 1: frame_key = KEY_UP; break;
-            case 2: frame_key = KEY_9;  break;
-            case 3: frame_key = KEY_2;  break;
-            case 4: frame_key = KEY_DOWN; break;
-        }
-    }
-    if (hal_io_keyboard_get_channel() == 3) {
-        switch (bus) {
-            case 1: frame_key = KEY_7;   break;
-            case 2: frame_key = KEY_6;   break;
-            case 3: frame_key = KEY_5;   break;
-            case 4: frame_key = KEY_CAL; break;
-            case 5: frame_key = KEY_4;   break;
-        }
+    /* Keyboard scan for the currently selected digit. The key matrix shares
+     * the digit select lines; report a raw code KEY_RAW(bus, channel) and let
+     * the application map it (the old bus->key table belonged to a different
+     * bus numbering and is not valid on this board). */
+    {
+        int ch = hal_io_keyboard_get_channel();
+        if (ch != 0)
+            frame_key = (key_id)KEY_RAW(bus, ch);
     }
 
     scan_pos = (pos + 1u) % NUMBER_OF_CHARACTERS;
