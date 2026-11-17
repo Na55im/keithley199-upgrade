@@ -14,8 +14,10 @@ export interface Reading { t: number; v: number; raw: number; func: Func; ri: nu
 export interface Notice { id: number; t: number; text: string; level: 'hint' | 'warn' }
 export interface RecInfo {
   id: string; start: number | null; stop: number | null; func: Func | null; unit: string;
-  points: number; channels: number[]; file: string | null; notes: { t: number; text: string }[];
+  points: number; channels: number[]; file: string | null;
+  notes: { t: number; text: string; kind?: 'note' | 'sleep' | 'gap'; t_end?: number }[];
 }
+export interface MinMax { func: Func; since: number; n: number; mean: number; min: number; t_min: number; max: number; t_max: number }
 export interface Settings {
   workplace: string; port: string; theme: 'light' | 'dark';
   channel_names: Record<string, string>;
@@ -25,7 +27,7 @@ export interface Info {
   status: 'searching' | 'connected' | 'disconnected' | 'offline';
   port: string; idn: string; build: string; state: DevState | null;
   ranges: { fs: number; label: string }[]; recording: RecInfo | null;
-  settings: Settings | null; notices: Notice[]; last: Reading | null;
+  settings: Settings | null; notices: Notice[]; last: Reading | null; minmax: MinMax | null;
 }
 
 export const F_OVERFLOW = 16, F_SETTLED = 8, F_HOLD = 64;
@@ -36,7 +38,7 @@ export const live = { t: [] as number[], v: [] as number[], ch: [] as number[], 
 export const log: { dir: string; line: string }[] = [];
 
 let info: Info = { status: 'offline', port: '', idn: '', build: '', state: null, ranges: [], recording: null,
-  settings: null, notices: [], last: null };
+  settings: null, notices: [], last: null, minmax: null };
 let rate = 0;
 const stamps: number[] = [];
 const subs = new Set<() => void>();
@@ -64,7 +66,8 @@ function onMsg(m: any) {
   onMsgOne(m); publish();
 }
 function onMsgOne(m: any) {
-  if (m.t === 'r') onReading(m.r);
+  if (m.t === 'r') { onReading(m.r); info = { ...info, minmax: m.mm }; }
+  else if (m.t === 'mm') info = { ...info, minmax: m.mm };
   else if (m.t === 'info') { const { t: _t, ...rest } = m; info = { ...info, ...rest }; }
   else if (m.t === 'notice') info = { ...info, notices: [...info.notices, m.notice].slice(-20) };
   else if (m.t === 'log') { log.push({ dir: m.dir, line: m.line }); if (log.length > 300) log.splice(0, 100); }

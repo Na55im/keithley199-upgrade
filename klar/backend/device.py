@@ -5,6 +5,7 @@ import bisect
 import json
 import math
 import os
+import subprocess
 import threading
 import time
 from collections import deque
@@ -16,6 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('KLAR_DATA') or os.path.join(os.path.dirname(HERE), 'data')
 SETTINGS_FILE = os.path.join(DATA_DIR, 'settings.json')
 LIVE_MAX = 400000                     # ~4 h at 25 readings/s
+GAP_NOTE_S = 60                       # readings missing longer than this -> note in the recording
 
 DEFAULT_SETTINGS = {
     'workplace': 'Arbeitsplatz 1',
@@ -114,6 +116,11 @@ def stats(ts, vs):
             'delta': delta, 'duration': ts[-1] - ts[0], 'hist': hist, 'hist_lo': lo, 'hist_hi': hi}
 
 
+def _dur(s):
+    s = int(s)
+    return '%d h %02d min' % (s // 3600, s % 3600 // 60) if s >= 3600 else '%d min %02d s' % (s // 60, s % 60)
+
+
 class Recording:
     def __init__(self, rid, state, ranges):
         self.id = rid
@@ -123,18 +130,37 @@ class Recording:
         self.unit = P.UNIT.get(self.func, '')
         self.series = Series()
         self.notes = []
+        self.last_t = None
+        self.flushed = 0.0
         os.makedirs(DATA_DIR, exist_ok=True)
         self.path = os.path.join(DATA_DIR, time.strftime('k199_%Y%m%d_%H%M%S.csv', time.localtime(self.start)))
         self.file = open(self.path, 'w')
         self.file.write('timestamp;t_s;value;unit;raw;function;range;channel;flags\n')
 
+    def add_note(self, t, text, kind='note', t_end=None):
+        """kind: note (user) | sleep (Mac asleep) | gap (no readings). Saved next to the CSV."""
+        n = {'t': t, 'text': text, 'kind': kind}
+        if t_end is not None:
+            n['t_end'] = t_end
+        self.notes.append(n)
+        try:
+            with open(self.path[:-4] + '.notes.json', 'w') as f:
+                json.dump(self.notes, f, indent=1, ensure_ascii=False)
+        except OSError:
+            pass
+        return n
+
     def add(self, r):
         if r.overflow:
             return
         self.series.add(r)
+        self.last_t = r.t
         self.file.write('%s.%03d;%.3f;%.9E;%s;%.9E;%s;%d;%d;%d\n' % (
             time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(r.t)), int(r.t * 1000) % 1000,
             r.t - self.start, r.value, P.UNIT.get(r.func, ''), r.raw, r.func, r.ri, r.chan, r.flags))
+        if r.t - self.flushed > 1.0:            # at most ~1 s of data lost on a crash or power cut
+            self.file.flush()
+            self.flushed = r.t
 
     def close(self):
         self.stop = time.time()
@@ -166,7 +192,10 @@ class Device:
         self.listeners = []
         self.reconnect = threading.Event()
         self.limit_state = None
+        self.keepawake = None
+        self.mm = None                      # min/max since reset (displayed values)
         threading.Thread(target=self._run, daemon=True).start()
+        threading.Thread(target=self._sleep_watch, daemon=True).start()
 
     # ---------------------------------------------------------------- events
     def subscribe(self, fn):
@@ -201,7 +230,8 @@ class Device:
                            for fs in self.ranges],
                 'recording': self.recording.info() if self.recording else None,
                 'settings': self.settings, 'notices': self.notices[-20:],
-                'last': self._reading_dict(self.last) if self.last else None}
+                'last': self._reading_dict(self.last) if self.last else None,
+                'minmax': self.mm}
 
     @staticmethod
     def _reading_dict(r):
@@ -246,6 +276,7 @@ class Device:
             rid = time.strftime('%Y%m%d-%H%M%S')
             self.recording = Recording(rid, self.state, self.ranges)
             self.recordings.append(self.recording)
+        self._keep_awake(True)
         self.emit(self.info())
         return self.recording
 
@@ -254,8 +285,60 @@ class Device:
             rec, self.recording = self.recording, None
             if rec:
                 rec.close()
+        self._keep_awake(False)
         self.emit(self.info())
         return rec
+
+    def reset_minmax(self):
+        self.mm = None
+        self.emit({'t': 'mm', 'mm': None})
+
+    def _minmax(self, r):
+        """MIN/MAX like a handheld DMM: extremes and mean of the displayed value since
+        the last reset; a new function or switching ZERO starts over."""
+        mm = self.mm
+        key = (r.func, bool(r.flags & P.F_ZERO))
+        if mm is None or mm['key'] != list(key):
+            mm = {'key': list(key), 'func': r.func, 'since': r.t, 'n': 0, 'sum': 0.0,
+                  'min': r.value, 't_min': r.t, 'max': r.value, 't_max': r.t}
+        mm['n'] += 1
+        mm['sum'] += r.value
+        mm['mean'] = mm['sum'] / mm['n']
+        if r.value < mm['min']:
+            mm['min'], mm['t_min'] = r.value, r.t
+        if r.value > mm['max']:
+            mm['max'], mm['t_max'] = r.value, r.t
+        self.mm = mm
+
+    def _keep_awake(self, on):
+        """macOS: no idle sleep (and no system sleep on mains power) while recording.
+        Closing the lid of a MacBook still sends it to sleep."""
+        if self.keepawake:
+            self.keepawake.terminate()
+            self.keepawake = None
+        if on:
+            try:
+                self.keepawake = subprocess.Popen(['caffeinate', '-i', '-s', '-w', str(os.getpid())])
+            except OSError:
+                self.notice('Ruhezustand kann nicht verhindert werden (caffeinate fehlt)', 'warn')
+
+    def _sleep_watch(self):
+        """The monotonic clock stops while the Mac sleeps, the wall clock does not."""
+        wall, mono = time.time(), time.monotonic()
+        while True:
+            time.sleep(2)
+            w, m = time.time(), time.monotonic()
+            slept = (w - wall) - (m - mono)
+            if slept > 10:
+                t0, t1 = wall + (m - mono) / 2, w
+                text = 'Mac im Ruhezustand %s – %s (%s)' % (time.strftime('%d.%m. %H:%M', time.localtime(t0)),
+                                                          time.strftime('%H:%M', time.localtime(t1)), _dur(slept))
+                self.notice(text + (': Aufnahme unterbrochen' if self.recording else ''), 'warn')
+                if self.recording:
+                    self.recording.add_note(t0, text, 'sleep', t1)
+                    self.recording.last_t = None            # the gap is explained
+                    self.emit(self.info())
+            wall, mono = w, m
 
     def get_recording(self, rid):
         if rid == 'live':
@@ -316,6 +399,14 @@ class Device:
         kind, p = P.parse_line(line, time.time())
         if kind == 'reading':
             self.last = p
+            rec = self.recording
+            if rec and rec.last_t and p.t - rec.last_t > GAP_NOTE_S and self.state and self.state.trig == 'CONT':
+                text = 'Keine Messwerte %s – %s (%s)' % (time.strftime('%H:%M:%S', time.localtime(rec.last_t)),
+                                                         time.strftime('%H:%M:%S', time.localtime(p.t)), _dur(p.t - rec.last_t))
+                rec.add_note(rec.last_t, text, 'gap', p.t)
+                self.notice(text, 'warn')
+            if not p.overflow and (p.settled or not p.flags & P.F_FILTER):
+                self._minmax(p)                      # unsettled filter values would distort min/max
             if not p.overflow:
                 with self.lock:
                     if self.live.func != p.func:
@@ -325,7 +416,7 @@ class Device:
                     if self.recording:
                         self.recording.add(p)
                 self._check_limits(p)
-            self.emit({'t': 'r', 'r': self._reading_dict(p)})
+            self.emit({'t': 'r', 'r': self._reading_dict(p), 'mm': self.mm})
         elif kind == 'state':
             old = self.state
             self.state = p

@@ -41,6 +41,27 @@ export function Chart({ data, makeOpts, height, deps = [], onReady, children }: 
   );
 }
 
+/** Break the line where readings are missing (Mac asleep, device off):
+ *  a gap is longer than 10x the typical spacing of that series, at least minGap s. */
+export function timeGaps(minGap = 5): uPlot.Series.GapsRefiner {
+  return (u, sidx, idx0, idx1, nullGaps) => {
+    const xs = u.data[0] as number[], ys = u.data[sidx] as (number | null)[];
+    const pts: number[] = [];
+    for (let i = idx0; i <= idx1; i++) if (ys[i] !== null && ys[i] !== undefined) pts.push(i);
+    if (pts.length < 3) return nullGaps;
+    const d: number[] = [];
+    for (let k = 1; k < pts.length; k += Math.max(1, Math.floor(pts.length / 500))) d.push(xs[pts[k]] - xs[pts[k - 1]]);
+    d.sort((a, b) => a - b);
+    const thr = Math.max(minGap, 10 * d[Math.floor(d.length / 2)]);
+    const gaps: [number, number][] = [...nullGaps];
+    for (let k = 1; k < pts.length; k++) {
+      const a = xs[pts[k - 1]], b = xs[pts[k]];
+      if (b - a > thr) gaps.push([Math.round(u.valToPos(a, 'x', true)) + 1, Math.round(u.valToPos(b, 'x', true))]);
+    }
+    return gaps;
+  };
+}
+
 export function axisStyle() {
   return {
     stroke: cssVar('--text-muted'),

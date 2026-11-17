@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type uPlot from 'uplot';
 import { api, useStore, type RecInfo } from '../store';
 import { funcInfo, rangeFmt, fmtVal, fmtEng, fmtSigned, fmtTime, fmtCount } from '../format';
-import { Chart, axisStyle, cssVar } from '../components/Chart';
+import { Chart, axisStyle, cssVar, timeGaps } from '../components/Chart';
 
 type Series = Record<string, { t: number[]; min: number[]; max: number[]; avg: number[] }>;
 interface Stats { n: number; mean?: number; min?: number; max?: number; sd?: number; pp?: number; drift_per_min?: number;
@@ -20,7 +20,7 @@ export function Analyse() {
   const [selChan, setSelChan] = useState<number>(0);
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [stats, setStats] = useState<Stats | null>(null);
-  const [notes, setNotes] = useState<{ t: number; text: string }[]>([]);
+  const [notes, setNotes] = useState<RecInfo['notes']>([]);
   const plotRef = useRef<uPlot | null>(null);
   const [, force] = useState(0);
 
@@ -99,7 +99,7 @@ export function Analyse() {
     ],
     series: [{}, ...chans.map((c, i) => ({
       label: 'Kanal ' + c, stroke: cssVar(CH_COLORS[i % CH_COLORS.length]), width: i ? 1.6 : 2,
-      spanGaps: true, show: !hidden.has(c), points: { show: false },
+      spanGaps: true, gaps: timeGaps(), show: !hidden.has(c), points: { show: false },
     }))],
     hooks: {
       setSelect: [(u) => {
@@ -199,6 +199,15 @@ export function Analyse() {
               return a !== null && b !== null ? <div style={{ position: 'absolute', top: 0, bottom: 0, left: a, width: b - a, background: 'var(--accent-live)', opacity: 0.1, pointerEvents: 'none' }} /> : null;
             })()}
             {notes.map((n, i) => {
+              if (n.t_end !== undefined) {                 // sleep / missing readings: shaded span
+                const u = plotRef.current;
+                if (!u || u.scales.x.min === undefined) return null;
+                const w = u.over.clientWidth;
+                const a = Math.max(0, u.valToPos(n.t, 'x')), b = Math.min(w, u.valToPos(n.t_end, 'x'));
+                if (b <= 0 || a >= w) return null;
+                return (<div key={i}><div className="gap-span" style={{ left: a + u.over.offsetLeft, width: Math.max(2, b - a) }} />
+                  <div className="note-flag" style={{ left: a + u.over.offsetLeft }}>{n.text}</div></div>);
+              }
               const p = pos(n.t);
               return p === null ? null : (
                 <div key={i}><div className="vline note" style={{ left: p }} /><div className="note-flag" style={{ left: p }}>Notiz: {n.text}</div></div>);

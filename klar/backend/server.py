@@ -115,6 +115,13 @@ def api_record(action: str, request: Request):
     raise HTTPException(400, 'start|stop')
 
 
+@app.post('/api/minmax/reset')
+def api_minmax_reset(request: Request):
+    _same_origin(request)
+    dev.reset_minmax()
+    return {'ok': True}
+
+
 @app.post('/api/settings')
 async def api_settings(request: Request):
     _same_origin(request)
@@ -197,7 +204,7 @@ async def api_note(rid: str, request: Request):
     if rec is None:
         raise HTTPException(400, 'Notizen nur in Aufnahmen')
     body = await request.json()
-    rec.notes.append({'t': float(body.get('t', time.time())), 'text': str(body.get('text', ''))[:200]})
+    rec.add_note(float(body.get('t', time.time())), str(body.get('text', ''))[:200])
     return rec.info()
 
 

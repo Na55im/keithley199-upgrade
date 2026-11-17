@@ -469,3 +469,13 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **Frontend** `klar/frontend/` (Vite + React + TS, uPlot, Inter/JetBrains Mono lokal gebündelt): Messen (nach `Main.reference.html`), Analyse (Bereichsauswahl → Statistik, Zoom per Mausrad, Notizen, PNG/CSV), Verbindungsdialog, Logger, Scanner-Kanäle, Einstellungen (Netzfrequenz, Integration, Filter, Stellen, Trigger, Tastensperre, Hell/Dunkel, Befehlskonsole), Hinweise. Handy-Layout mit Leiste unten.
 - **Mac-App:** `klar/make_app.sh` → `~/Applications/KLAR.app`. Laufzeit nach `~/Library/Application Support/KLAR`, Daten nach `~/KLAR`: eine App darf nicht aus dem Schreibtisch-Ordner lesen (`PermissionError` auf `.venv/pyvenv.cfg`).
 - Geprüft: Simulator (Messen, Analyse mit 2 Kanälen und Auswahl, Handy-Ansicht); echtes Gerät über die App (Verbindung, Live-Werte, Modus Schnell → 20 Messungen/s, Funktionswechsel DCA). Nicht geprüft: Touch-Panel-Layout 1280×720 als eigene Ansicht (nur Dunkel-Modus), LAN-Betrieb, Grenzwert-Hinweis am Gerät.
+
+## 2026-11-17 — KLAR: Langzeitaufnahme abgesichert, Min/Max
+
+- **Auswertung der Aufnahme vom 16.11.** (`~/KLAR/k199_20261116_224224.csv`, Riden ~5 V, DCV 30 V, Präzise): 18,6 h Laufzeit, aber nur 2,5 h Daten in drei Abschnitten; Lücken 7 h und 9 h ohne Fehlermeldung → vermutlich Ruhezustand des Macs (Server steht). Drift gesamt ~+60 µV (12 ppm), im 2-h-Abschnitt +3 µV/h, Rauschen gefiltert 2–4 µV σ, einzelne Wandlung ~66 µV.
+- **Ruhezustand:** während einer Aufnahme läuft `caffeinate -i -s -w <pid>` (kein Ruhezustand bei Untätigkeit, am Netzteil auch kein System-Schlaf). Zuklappen eines MacBooks schickt es trotzdem schlafen.
+- **Erkennung:** Schlaf über Wanduhr gegen monotone Uhr (die beim Schlafen steht) → Hinweis und Eintrag in der Aufnahme. Messlücken > 60 s im Dauertrigger → Eintrag „Keine Messwerte …“. Einträge stehen in `<aufnahme>.notes.json` neben der CSV.
+- **Diagramme:** Linien werden an Lücken unterbrochen (> 10× typischer Abstand, mind. 5 s); Schlaf/Lücken in der Analyse als schraffierter Bereich mit Text.
+- **CSV** wird jede Sekunde auf die Platte geschrieben (vorher gepuffert).
+- **Min/Max** (Wunsch Nutzer): Karte auf „Messen“ mit Minimum/Maximum samt Uhrzeit, Mittelwert, Spanne, Anzahl seit „Zurücksetzen“; neu bei Funktionswechsel oder ZERO; bei Filter nur gefüllte Werte. Läuft im Backend (`/api/minmax/reset`), übersteht Neuladen der Seite.
+- Geprüft: Lücken-Eintrag, Min/Max und caffeinate mit künstlichen Messwerten; Min/Max-Karte am Gerät. Echter Ruhezustand nicht getestet.

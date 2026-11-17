@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type uPlot from 'uplot';
 import { api, live, send, useStore, F_HOLD, F_OVERFLOW, F_SETTLED } from '../store';
 import { FUNCS, MODES, funcInfo, stFmt, fmtReading, fmtVal, fmtEng, fmtDuration, fmtCount } from '../format';
-import { Chart, axisStyle, cssVar } from '../components/Chart';
+import { Chart, axisStyle, cssVar, timeGaps } from '../components/Chart';
 
 const WINDOWS = [{ s: 60, label: '1 min' }, { s: 300, label: '5 min' }, { s: 3600, label: '1 h' }, { s: 0, label: 'Alles' }];
 
@@ -66,7 +66,7 @@ export function Measure({ now }: { now: number }) {
       { ...axisStyle(), values: (_u, ticks) => ticks.map((t) => new Date(t * 1000).toLocaleTimeString('de-DE', win > 300 || !win ? { hour: '2-digit', minute: '2-digit' } : {})) },
       { ...axisStyle(), size: 84, values: (_u, ticks) => ticks.map((t) => fmtVal(t, f, 1)) },
     ],
-    series: [{}, { stroke: cssVar('--accent'), width: 2, fill: cssVar('--accent-live') + '14', points: { show: false } }],
+    series: [{}, { stroke: cssVar('--accent'), width: 2, fill: cssVar('--accent-live') + '14', points: { show: false }, gaps: timeGaps() }],
   });
   const [tip, setTip] = useState<{ left: number; ago: string; val: string } | null>(null);
   const onReady = (u: uPlot) => {
@@ -173,10 +173,33 @@ export function Measure({ now }: { now: number }) {
             {st && st.filter && !(last && last.flags & F_SETTLED) && !(last && last.flags & F_HOLD) ? (
               <span className="eyebrow">Filter füllt sich (100 Wandlungen)</span>) : null}
           </section>
+          <MinMaxCard f={f} />
           <Limits f={f} />
         </div>
       </div>
     </>
+  );
+}
+
+function MinMaxCard({ f }: { f: ReturnType<typeof stFmt> }) {
+  const { info } = useStore();
+  const mm = info.minmax;
+  const ok = mm && info.state && mm.func === info.state.func;
+  const at = (t: number) => new Date(t * 1000).toLocaleTimeString('de-DE');
+  return (
+    <section aria-label="Min/Max" className="card" style={{ gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <h2>Min / Max</h2>
+        <button type="button" className="btn small" onClick={() => api('/minmax/reset', 'POST')}>Zurücksetzen</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px' }}>
+        <div className="stat"><span className="stat-label">Minimum{ok ? ' · ' + at(mm!.t_min) : ''}</span><span className="stat-val">{ok ? fmtVal(mm!.min, f) + ' ' + f.unit : '–'}</span></div>
+        <div className="stat"><span className="stat-label">Maximum{ok ? ' · ' + at(mm!.t_max) : ''}</span><span className="stat-val">{ok ? fmtVal(mm!.max, f) + ' ' + f.unit : '–'}</span></div>
+        <div className="stat"><span className="stat-label">Mittelwert</span><span className="stat-val">{ok ? fmtVal(mm!.mean, f) + ' ' + f.unit : '–'}</span></div>
+        <div className="stat"><span className="stat-label">Spanne</span><span className="stat-val">{ok ? fmtEng(mm!.max - mm!.min, f.unit.slice(-1)) : '–'}</span></div>
+      </div>
+      <span className="eyebrow">{ok ? `seit ${at(mm!.since)} · ${fmtCount(mm!.n)} Messungen` : 'Startet mit der nächsten Messung'}{info.state?.filter ? ' · nur gefüllter Filter' : ''}</span>
+    </section>
   );
 }
 
