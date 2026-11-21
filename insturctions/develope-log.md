@@ -479,3 +479,17 @@ Verified: `make TYPE_IMAGE=DEBUG_RUN -f nbproject/Makefile-default.mk SUBPROJECT
 - **CSV** wird jede Sekunde auf die Platte geschrieben (vorher gepuffert).
 - **Min/Max** (Wunsch Nutzer): Karte auf „Messen“ mit Minimum/Maximum samt Uhrzeit, Mittelwert, Spanne, Anzahl seit „Zurücksetzen“; neu bei Funktionswechsel oder ZERO; bei Filter nur gefüllte Werte. Läuft im Backend (`/api/minmax/reset`), übersteht Neuladen der Seite.
 - Geprüft: Lücken-Eintrag, Min/Max und caffeinate mit künstlichen Messwerten; Min/Max-Karte am Gerät. Echter Ruhezustand nicht getestet.
+
+## 2026-11-17 — Quarz X1: Ursache gefunden, ersetzt (12 MHz), Firmware auf Quarz umgestellt
+
+- **Ursache, warum X1 nie schwang:** Pin-Zuordnung Symbol ≠ Footprint. Symbol `CRYSTAL_SMD_4POL` (Bibliothek hw01/rescue): Pins 1, 2 = Gehäuse, 3, 4 = Quarz. Footprint `Crystal:Crystal_SMD_5032-4Pin_5.0x3.2mm` (KiCad-Standard): Pads 1, 3 = Quarz, 2, 4 = Gehäuse. Auf der Platine: Pad 1 → GND, Pad 2 → GND, Pad 3 → OSC1 (Pin 63), Pad 4 → OSC2 (Pin 64). Ein Standard-Quarz hängt damit zwischen GND und OSC1 (schwingt nie); ein 4-Pad-Oszillator hätte OE auf GND und keine Versorgung. **Für die nächste Leiterplatte Symbol/Pinzuordnung von X1 korrigieren.**
+- **Vorher:** FRC+PLL. Gegen die Mac-Uhr gemessen (`tools/clockcheck.py`, Zeitstempel der Messwerte gegen Host-Zeit): **+3344…+3620 ppm** (0,33–0,36 % zu schnell) → Integration 19,93 statt 20 ms, 50-Hz-Unterdrückung nur ~49 dB. OSCTUN −8 hätte auf +22 ppm getrimmt (Befehl `OSCTUN n`/`OSCTUN?` zum Messen, `FRC_TUNE` in `remote.c`, Standard 0 — nur noch für den Notbetrieb auf FRC von Bedeutung). Beim Test mit OSCTUN +8 war das Gerät danach stumm (Ursache unklar, Nutzer hatte es parallel abgeschaltet).
+- **Umbau (Nutzer):** neuer **12-MHz-Quarz** an OSC1/OSC2.
+- **Fuses (`fuses.c`):** `FNOSC = PRIPLL`, `POSCMOD = HS` (XT nur bis 10 MHz), `FPLLIDIV = DIV_3` (12/3 = 4 MHz PLL-Eingang, ×20 = 80 MHz), `FCKSM = CSECME` (Taktüberwachung: fällt der Quarz aus, läuft die CPU auf FRC weiter statt stehen zu bleiben).
+- **Ergebnis:** `OSCTUN?` → COSC = 3 (Primäroszillator mit PLL). Taktfehler gegen die Mac-Uhr über 4 min: **+62 ppm** (vorher +3600 ppm). 50-Hz-Unterdrückung damit theoretisch > 80 dB, praktisch durch Schwankungen der Netzfrequenz begrenzt. Messung läuft normal (5-V-Riden: 4,99990 V). Kalibrierung bleibt gültig: die Messung ist ratiometrisch, und 4× kürzere Integration (FAST) verschob die Werte nachweislich nicht. Kein Abgleich gegen das 2700 (Kamera nicht verfügbar).
+
+## 2026-11-20 — KLAR in eigenes Projekt ausgelagert
+
+- KLAR liegt jetzt in `/Users/nagre/projects/KLAR` (eigener Ordner mit Backend, Frontend, Design, Doku, Skripten, Daten). Im Firmware-Repo bleibt nur `klar/README.md` als Verweis.
+- Neu: Treiber-Architektur (`backend/klar/drivers/<gerät>/`, Schnittstelle `klar/core/driver.py`, Anleitung `docs/DRIVERS.md`). Treiber: `keithley199` (Protokoll aus `insturctions/remote-protocol.md` als `PROTOCOL.md` kopiert, Simulator), `rd6018` (Riden, nur lesend, standardmäßig aus), `_template`.
+- Bei Änderungen am Fernsteuerprotokoll der Firmware: `PROTOCOL.md`, `protocol.py` und `simulator.py` im KLAR-Treiber mitziehen.

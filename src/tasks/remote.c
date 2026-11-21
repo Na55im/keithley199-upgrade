@@ -51,10 +51,32 @@ static void rem_rx_cb(hal_uart_port port, uint8_t data, hal_uart_error error)
 	}
 }
 
+/* FRC trim (OSCTUN, 6-bit two's complement). Crystal X1 cannot oscillate on
+ * this board (symbol/footprint pin mismatch, see develope-log 2026-11-17), so
+ * the CPU runs on FRC+PLL; FRC_TUNE pulls it to 8 MHz. Measured against the
+ * host clock with tools/clockcheck.py. */
+#ifndef FRC_TUNE
+#define FRC_TUNE 0
+#endif
+static int frc_tune = FRC_TUNE;
+
+static void __attribute__((nomips16)) frc_set_tune(int v)
+{
+	unsigned int ist = hal_irq_disable();
+	SYSKEY = 0;
+	SYSKEY = 0xAA996655;
+	SYSKEY = 0x556699AA;
+	OSCTUN = (unsigned int)v & 0x3Fu;
+	SYSKEY = 0x33333333;
+	hal_irq_restore(ist);
+	frc_tune = v;
+}
+
 /* UART3 is set up with the SFRs directly: the legacy plib UART/INT functions
  * are not linked into this build (address 0), calling them crashes. */
 static void remote_init(void)
 {
+	frc_set_tune(FRC_TUNE);
 	ANSELBCLR = (1u << 3) | (1u << 5);      /* RB3 = U3RX, RB5 = U3TX: digital */
 	TRISBSET = (1u << 3);
 	CNPUBSET = (1u << 3);                   /* pull-up: an open RX line stays idle */
@@ -356,6 +378,15 @@ static void rem_exec(char *line)
 		if (rem_eq(arg, "50")) { st.line60 = 0; apply_integration(); rem_ok(); }
 		else if (rem_eq(arg, "60")) { st.line60 = 1; apply_integration(); rem_ok(); }
 		else rem_err("ARG");
+	} else if (rem_eq(cmd, "OSCTUN?")) {
+		rem_puti(frc_tune); rem_putc(','); rem_puti((OSCCON >> 12) & 7); rem_putc('\n');   /* trim, COSC */
+	} else if (rem_eq(cmd, "OSCTUN")) {
+		/* temporary FRC trim -32..31 for measuring; not stored */
+		char *e = arg; int neg = (*e == '-'); if (neg) e++;
+		int n = 0, ok = (*e >= '0' && *e <= '9');
+		while (*e >= '0' && *e <= '9') n = n * 10 + (*e++ - '0');
+		if (neg) n = -n;
+		if (ok && !*e && n >= -32 && n <= 31) { frc_set_tune(n); rem_ok(); } else rem_err("ARG");
 	} else if (rem_eq(cmd, "LOCK")) {
 		if (rem_onoff(arg, &v)) { st.lock = v; rem_ok(); } else rem_err("ARG");
 	} else if (rem_eq(cmd, "HOLD")) {
